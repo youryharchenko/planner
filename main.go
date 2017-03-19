@@ -2,7 +2,8 @@ package main
 
 import (
 	"log"
-	"planner/pl"
+
+	"github.com/youryharchenko/planner/pl"
 )
 
 func main() {
@@ -37,9 +38,10 @@ func main() {
 			Eval(
 				pl.NewPlist(
 					pl.NewWord("prog"),
-					pl.NewLlist(pl.NewWord("X"), pl.NewLlist(pl.NewWord("Y"), pl.NewWord("Value of Y")), pl.NewWord("Z")),
-					pl.NewPlist(pl.NewWord("set"), pl.NewWord("X"), pl.NewWord("Value of X")),
-					pl.NewRef(pl.LocalValue, pl.NewWord("Y")),
+					pl.NewLlist(pl.NewWord("X"), pl.NewLlist(pl.NewWord("Y"), pl.NewWord("ValueOfY")), pl.NewWord("Z")),
+					pl.NewPlist(pl.NewWord("set"), pl.NewWord("X"), pl.NewWord("ValueOfX")),
+					pl.NewPlist(pl.NewWord("set"), pl.NewWord("Z"), pl.NewLlist(pl.NewRef(pl.LocalValue, pl.NewWord("X")), pl.NewRef(pl.LocalValue, pl.NewWord("Y")))),
+					pl.NewRef(pl.LocalValue, pl.NewWord("Z")),
 				),
 			).String(),
 	)

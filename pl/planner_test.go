@@ -29,4 +29,26 @@ func TestPlist(t *testing.T) {
 	if plist1.String() != "[a b c ]" {
 		t.Error(fmt.Sprintf("Expected string '[a b c ]' equals string '[a b c ]', got string '%s' not equal string '%s'", plist1.String(), "[a b c ]"))
 	}
+
+	result := Begin().
+		Eval(
+			NewPlist(
+				NewWord("prog"),
+				NewLlist(NewWord("X"), NewLlist(NewWord("Y"), NewWord("ValueOfY")), NewWord("Z")),
+				NewPlist(NewWord("set"), NewWord("X"), NewWord("ValueOfX")),
+				NewPlist(NewWord("set"), NewWord("Z"), NewLlist(NewRef(LocalValue, NewWord("X")), NewRef(LocalValue, NewWord("Y")))),
+				NewRef(LocalValue, NewWord("Z")),
+			),
+		).String()
+
+	if result != "(ValueOfX ValueOfY )" {
+		t.Error(fmt.Sprintf("Expected string '(ValueOfX ValueOfY )' equals string '(ValueOfX ValueOfY )', got string '%s' not equal string '%s'", result, "(ValueOfX ValueOfY )"))
+	}
+}
+
+func TestLlist(t *testing.T) {
+	llist1 := NewLlist(NewWord("x"), NewWord("y"), NewWord("z"))
+	if llist1.String() != "(x y z )" {
+		t.Error(fmt.Sprintf("Expected string '(x y z )' equals string '(x y z )', got string '%s' not equal string '%s'", llist1.String(), "(x y z )"))
+	}
 }

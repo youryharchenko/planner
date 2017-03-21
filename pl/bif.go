@@ -35,3 +35,11 @@ func set(env *Env, args []Expression) Expression {
 	}
 	//return args[1]
 }
+
+func sumint(env *Env, args []Expression) Expression {
+	s := int64(0)
+	for _, arg := range args {
+		s += arg.(Int).number
+	}
+	return NewInt(s)
+}

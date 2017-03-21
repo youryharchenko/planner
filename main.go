@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 
 	"github.com/youryharchenko/planner/pl"
 )
@@ -45,5 +46,15 @@ func main() {
 				),
 			).String(),
 	)
+
+	src1 := `
+	[prog (X (Y ValueOfY) Z) [set X ValueOfX] [set Z (.X .Y)] .Z]
+	`
+	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src1)))
+
+	src2 := `
+	[prog (X (Y 1) Z) [set X 2] [set Z [sumint .X .Y]] .Z]
+	`
+	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src2)))
 
 }

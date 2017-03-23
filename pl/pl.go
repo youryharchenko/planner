@@ -34,7 +34,7 @@ const (
 )
 
 type Vars struct {
-	ctx  map[Word]Expression
+	ctx  map[Word]chan Expression
 	ret  chan Expression
 	cont bool
 	next *Vars
@@ -66,8 +66,10 @@ func (expr Ref) Value(env *Env) Expression {
 	case LocalValue:
 		vars := env.current
 		for {
-			if val, ok := vars.ctx[expr.ref]; ok {
-				if val != nil {
+			if ch, ok := vars.ctx[expr.ref]; ok {
+				if ch != nil {
+					val := <-ch
+					ch <- val
 					return val
 				} else {
 					fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
@@ -193,7 +195,7 @@ func (expr Func) Value(env *Env) Expression {
 }
 
 func (expr Func) String() string {
-	return fmt.Sprintf("%v", expr.mode)
+	return fmt.Sprintf("%v, %v", expr.mode, expr.class)
 }
 
 type Sentinel struct {
@@ -217,13 +219,15 @@ var ExprIntSize = 64
 var ExprFloatSize = 64
 
 func Begin() *Env {
-	global := Vars{ctx: map[Word]Expression{}, next: nil}
-	local := Vars{ctx: map[Word]Expression{}, next: nil}
+	global := Vars{ctx: map[Word]chan Expression{}, next: nil}
+	local := Vars{ctx: map[Word]chan Expression{}, next: nil}
 
-	global.ctx[NewWord("quote")] = Func{mode: BuiltIn, class: FSubr, bi: quote}
-	global.ctx[NewWord("prog")] = Func{mode: BuiltIn, class: FSubr, bi: prog}
-	global.ctx[NewWord("set")] = Func{mode: BuiltIn, class: Subr, bi: set}
-	global.ctx[NewWord("sumint")] = Func{mode: BuiltIn, class: Subr, bi: sumint}
+	global.ctx[NewWord("fold")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fold})
+	global.ctx[NewWord("quote")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: quote})
+	global.ctx[NewWord("prog")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: prog})
+	global.ctx[NewWord("set")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: set})
+	global.ctx[NewWord("sum$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
+	global.ctx[NewWord("sum$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumint})
 
 	env := &Env{
 		globalVars: &global,

@@ -281,7 +281,7 @@ func (parser *Parser) ParseList(depth int) (Expression, error) {
 	return NewLlist(arr...), nil
 }
 
-func (parser *Parser) ParseArray(depth int) (Expression, error) {
+func (parser *Parser) ParsePlist(depth int) (Expression, error) {
 	lexer := parser.lexer
 	arr := make([]Expression, 0, SliceDefaultCap)
 
@@ -316,7 +316,7 @@ func (parser *Parser) ParseArray(depth int) (Expression, error) {
 			}
 		}
 
-		if tok.typ == TokenRSquare {
+		if tok.typ == TokenRCurly {
 			// pop off the ]
 			_, _ = lexer.GetNextToken()
 			break
@@ -357,13 +357,14 @@ func (parser *Parser) ParseExpression(depth int) (res Expression, err error) {
 		exp, err := parser.ParseList(depth + 1)
 		//log.Println("ParseExpression: parsed list:", exp, err)
 		return exp, err
-	case TokenLSquare:
-		exp, err := parser.ParseArray(depth + 1)
+		//case TokenLSquare:
+		//	exp, err := parser.ParseArray(depth + 1)
 		//log.Println("ParseExpression: parsed array:", exp, err)
+		//return exp, err
+	case TokenLCurly:
+		//	exp, err := parser.ParseInfix(depth + 1)
+		exp, err := parser.ParsePlist(depth + 1)
 		return exp, err
-	//case TokenLCurly:
-	//	exp, err := parser.ParseInfix(depth + 1)
-	//	return exp, err
 	//case TokenQuote:
 	//	expr, err := parser.ParseExpression(depth + 1)
 	//	if err != nil {

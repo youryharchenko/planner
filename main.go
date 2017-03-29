@@ -48,44 +48,65 @@ func main() {
 		)
 	*/
 	src0 := `
-	[prog (a b c) [set c [sum$int 1 .b]] [set b [sum$int 1 .a]] [set a 1] .c]
+	{prog (a b c) {set c {sum$int 1 .b}} {set b {sum$int 1 .a}} {set a 1} .c}
 	`
 	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src0)))
 
 	src1 := `
-		[prog (X (Y ValueOfY) Z) [set X ValueOfX] [set Z (.X .Y)] .Z]
+		{prog (X (Y ValueOfY) Z) {set X ValueOfX} {set Z (.X .Y)} .Z}
 		`
 	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src1)))
 
 	src2 := `
-		[prog (X (Y 1) Z) [set X 2.5] [set Z [sum$int .X .Y]] .Z]
+		{prog (X (Y 1) Z) {set X 2.5} {set Z {sum$int .X .Y}} .Z}
 		`
 	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src2)))
 
 	src3 := `
-		[prog
+		{prog
 			(X (Y 1) Z)
-			[set X 2.5]
-			[set Z ([sum$int .X .Y] [sum$float .X .Y])]
+			{set X 2.5}
+			{set Z ({sum$int .X .Y} {sum$float .X .Y})}
 			.Z
-		]
+		}
 		`
 	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src3)))
 
 	src4 := `
-		[prog
+		{prog
 			((X 1) (Y 2) (Z 3))
-			(fold sum (.X .Y .Z) [fold sum$float 0 (.X .Y .Z)])
-		]
+			(fold sum (.X .Y .Z) {fold sum$float 0 (.X .Y .Z)})
+		}
 		`
 	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src4)))
 
 	src5 := `
-		[prog
+		{prog
 			(X Y Z)
-			(fold sum  [set X 1] [set Y 2] [set Z 3] is [fold sum$int 0 (.X .Y .Z)] )
-		]
+			(fold sum  {print ({set X 1} {set Y 2} {set Z 3})} is {fold sum$int 0 (.X .Y .Z)} )
+		}
 		`
 	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src5)))
+
+	src6 := `
+		{prog
+			()
+			{map print ((A B) (C D))}
+		}
+		`
+	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src6)))
+
+	src7 := `
+		{prog
+			(X Y Z)
+			(fold prod {print ({set X 1} {set Y 2} {set Z 3})} is {fold prod$int 1 (.X .Y .Z)} )
+		}
+		`
+	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src7)))
+
+	src9 := `
+	{prog (a b c) {set c {sum$int 1 .b}} {set b {sum$int 1 .a}} {set a 1} {exit .c} }
+	`
+	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src9)))
 
 }

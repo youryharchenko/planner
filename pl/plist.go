@@ -64,9 +64,9 @@ func (expr Plist) Value(env *Env) Expression {
 }
 
 func (expr Plist) String() string {
-	ret := "["
+	ret := "{"
 	for _, elm := range expr.list {
 		ret += elm.String() + " "
 	}
-	return ret + "]"
+	return ret + "}"
 }

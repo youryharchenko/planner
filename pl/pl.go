@@ -36,6 +36,7 @@ const (
 type Vars struct {
 	ctx  map[Word]chan Expression
 	ret  chan Expression
+	exit chan Expression
 	cont bool
 	next *Vars
 }
@@ -69,6 +70,7 @@ func (expr Ref) Value(env *Env) Expression {
 			if ch, ok := vars.ctx[expr.ref]; ok {
 				if ch != nil {
 					val := <-ch
+					log.Println("Ref Value:", val)
 					ch <- val
 					return val
 				} else {
@@ -222,8 +224,13 @@ func Begin() *Env {
 	global := Vars{ctx: map[Word]chan Expression{}, next: nil}
 	local := Vars{ctx: map[Word]chan Expression{}, next: nil}
 
+	global.ctx[NewWord("exit")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: exit})
 	global.ctx[NewWord("fold")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fold})
+	global.ctx[NewWord("map")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fmap})
 	global.ctx[NewWord("quote")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: quote})
+	global.ctx[NewWord("print")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: print})
+	global.ctx[NewWord("prod$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
+	global.ctx[NewWord("prod$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodint})
 	global.ctx[NewWord("prog")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: prog})
 	global.ctx[NewWord("set")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: set})
 	global.ctx[NewWord("sum$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumfloat})

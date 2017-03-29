@@ -44,6 +44,17 @@ func (env *Env) run_fold(f *Func, val Expression, list []Expression) {
 	}
 }
 
+func (env *Env) run_map(f *Func, new_list []Expression, list []Expression) {
+	if env.current.cont && len(list) >= 1 {
+		new_list = append(new_list, applyFunc(f, []Expression{list[0]}, env))
+		if len(list) == 1 {
+			env.current.ret <- NewLlist(new_list...)
+		} else {
+			go env.run_map(f, new_list, list[1:])
+		}
+	}
+}
+
 func findFunc(word Word, env *Env) *Func {
 	vars := env.current
 	var f Func

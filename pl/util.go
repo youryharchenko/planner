@@ -2,16 +2,16 @@ package pl
 
 import "fmt"
 
-func (env *Env) new_current_local(vars Llist) {
-	env.current = &Vars{ctx: map[Word]chan Expression{}, next: env.current}
-	for _, elm := range vars.list {
+func (env *Env) new_current_local(vars ListNode) {
+	env.current = &Vars{ctx: map[IdentNode]chan Node{}, next: env.current}
+	for _, elm := range vars.Nodes {
 		switch elm.(type) {
-		case Word:
-			env.current.ctx[elm.(Word)] = make(chan Expression, 1)
-		case Llist:
-			if llist := elm.(Llist); len(llist.list) == 2 {
-				word := llist.list[0].(Word)
-				env.current.ctx[word] = makeVar(llist.list[1])
+		case IdentNode:
+			env.current.ctx[elm.(IdentNode)] = make(chan Node, 1)
+		case ListNode:
+			if llist := elm.(ListNode); len(llist.Nodes) == 2 {
+				word := llist.Nodes[0].(IdentNode)
+				env.current.ctx[word] = makeVar(llist.Nodes[1])
 			}
 		}
 	}
@@ -21,7 +21,7 @@ func (env *Env) del_current_local() {
 	env.current = env.current.next
 }
 
-func (env *Env) run_stmt(args []Expression) {
+func (env *Env) run_stmt(args []Node) {
 	if env.current.cont && len(args) >= 1 {
 		if len(args) == 1 {
 			val := args[0].Value(env)
@@ -33,9 +33,9 @@ func (env *Env) run_stmt(args []Expression) {
 	}
 }
 
-func (env *Env) run_fold(f *Func, val Expression, list []Expression) {
+func (env *Env) run_fold(f *Func, val Node, list []Node) {
 	if env.current.cont && len(list) >= 1 {
-		newVal := applyFunc(f, []Expression{val, list[0]}, env)
+		newVal := applyFunc(f, []Node{val, list[0]}, env)
 		if len(list) == 1 {
 			env.current.ret <- newVal
 		} else {
@@ -44,18 +44,18 @@ func (env *Env) run_fold(f *Func, val Expression, list []Expression) {
 	}
 }
 
-func (env *Env) run_map(f *Func, new_list []Expression, list []Expression) {
+func (env *Env) run_map(f *Func, new_list []Node, list []Node) {
 	if env.current.cont && len(list) >= 1 {
-		new_list = append(new_list, applyFunc(f, []Expression{list[0]}, env))
+		new_list = append(new_list, applyFunc(f, []Node{list[0]}, env))
 		if len(list) == 1 {
-			env.current.ret <- NewLlist(new_list...)
+			env.current.ret <- newListNode(new_list)
 		} else {
 			go env.run_map(f, new_list, list[1:])
 		}
 	}
 }
 
-func findFunc(word Word, env *Env) *Func {
+func findFunc(word IdentNode, env *Env) *Func {
 	vars := env.current
 	var f Func
 	for {
@@ -82,26 +82,26 @@ Apply:
 	return &f
 }
 
-func applyFunc(f *Func, args []Expression, env *Env) Expression {
+func applyFunc(f *Func, args []Node, env *Env) Node {
 	switch f.mode {
 	case BuiltIn:
-		var list []Expression
+		var list []Node
 		if f.class == FSubr {
 			list = args
 		} else {
-			list = []Expression{}
+			list = []Node{}
 			for _, elm := range args {
 				list = append(list, elm.Value(env))
 			}
 		}
 		return f.bi(env, list)
 	}
-	return NewWord("<unexpected>")
+	return newIdentNode("<unexpected>")
 }
 
-func makeVar(expr Expression) chan Expression {
+func makeVar(expr Node) chan Node {
 	//log.Println("makeVar", expr)
-	ch := make(chan Expression, 1)
+	ch := make(chan Node, 1)
 	ch <- expr
 	//log.Println("makeVar", ch)
 	return ch

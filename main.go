@@ -66,7 +66,7 @@ func main() {
 		{prog
 			(X (Y 1) Z)
 			{set X 2.5}
-			{set Z ({sum$int .X .Y} {sum$float .X .Y})}
+			{set Z ({sum$int {set X .X} {set Y .Y}} {sum$float .X .Y})}
 			.Z
 		}
 		`
@@ -75,7 +75,7 @@ func main() {
 	src4 := `
 		{prog
 			((X 1) (Y 2) (Z 3))
-			(fold sum (.X .Y .Z) {fold sum$float 0 (.X .Y .Z)})
+			(fold sum (1 2 3) {fold sum$float 0 (.X .Y .Z)})
 		}
 		`
 	log.Println("Prog SourceStream():", pl.Begin().SourceStream(strings.NewReader(src4)))

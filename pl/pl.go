@@ -2,11 +2,11 @@ package pl
 
 import (
 	"fmt"
-	"io"
 	"log"
+	"time"
 )
 
-var Q = func(quietly_ignored ...interface{}) {}
+//var Q = func(quietly_ignored ...interface{}) {}
 
 type RefType int
 
@@ -34,64 +34,78 @@ const (
 )
 
 type Vars struct {
-	ctx  map[Word]chan Expression
-	ret  chan Expression
-	exit chan Expression
+	ctx  map[IdentNode]chan Node
+	ret  chan Node
+	exit chan Node
 	cont bool
 	next *Vars
 }
 
 type Env struct {
-	parser     *Parser
+	//parser     *Parser
 	globalVars *Vars
 	localVars  *Vars
 	current    *Vars
 }
 
-type Expression interface {
-	Value(env *Env) Expression
+/*
+type Node interface {
+	Value(env *Env) Node
 	String() string
 }
+*/
 
-type Ref struct {
+type RefNode struct {
+	NodeType
 	mode RefType
-	ref  Word
+	ref  IdentNode
 }
 
-func NewRef(refType RefType, word Word) Ref {
-	return Ref{mode: refType, ref: word}
+func newRefNode(refType RefType, word IdentNode) RefNode {
+	return RefNode{mode: refType, ref: word}
 }
 
-func (expr Ref) Value(env *Env) Expression {
+func (expr RefNode) Value(env *Env) Node {
 	switch expr.mode {
 	case LocalValue:
 		vars := env.current
 		for {
 			if ch, ok := vars.ctx[expr.ref]; ok {
 				if ch != nil {
-					val := <-ch
-					log.Println("Ref Value:", val)
-					ch <- val
-					return val
+					var val Node
+					select {
+					case val = <-ch:
+						log.Println("Ref Value:", expr.ref, val)
+						//ch <- val
+						return val
+					case <-time.After(time.Second * 5):
+						log.Println("Ref Value timeout", expr.ref)
+						return newIdentNode("<timeout>")
+					}
 				} else {
 					fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
-					return NewWord("<unassigned>")
+					return newIdentNode("<unassigned>")
 				}
 			}
 			if vars.next == nil {
 				fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
-				return NewWord("<unbound>")
+				return newIdentNode("<unbound>")
 			}
 			vars = vars.next
 		}
 	}
-	return NewWord("<unexpected>")
+	return newIdentNode("<unexpected>")
 }
 
-func (expr Ref) String() string {
+func (expr RefNode) String() string {
 	return fmt.Sprintf("%s%s", RefTypeString[expr.mode], expr.ref.String())
 }
 
+func (expr RefNode) Copy() Node {
+	return newRefNode(expr.mode, expr.ref)
+}
+
+/*
 type Word struct {
 	word string
 }
@@ -100,7 +114,7 @@ func NewWord(word string) Word {
 	return Word{word: word}
 }
 
-func (expr Word) Value(env *Env) Expression {
+func (expr Word) Value(env *Env) Node {
 	return expr
 }
 
@@ -109,15 +123,15 @@ func (expr Word) String() string {
 }
 
 type Pair struct {
-	head Expression
-	tail Expression
+	head Node
+	tail Node
 }
 
-func NewPair(head Expression, tail Expression) Pair {
+func NewPair(head Node, tail Node) Pair {
 	return Pair{head: head, tail: tail}
 }
 
-func (expr Pair) Value(env *Env) Expression {
+func (expr Pair) Value(env *Env) Node {
 	return expr
 }
 
@@ -138,7 +152,7 @@ func NewInt(number int64) Int {
 	return Int{number: number}
 }
 
-func (expr Int) Value(env *Env) Expression {
+func (expr Int) Value(env *Env) Node {
 	return expr
 }
 
@@ -154,7 +168,7 @@ func NewFloat(number float64) Float {
 	return Float{number: number}
 }
 
-func (expr Float) Value(env *Env) Expression {
+func (expr Float) Value(env *Env) Node {
 	return expr
 }
 
@@ -170,7 +184,7 @@ func NewComment(text string) Comment {
 	return Comment{text: text}
 }
 
-func (expr Comment) Value(env *Env) Expression {
+func (expr Comment) Value(env *Env) Node {
 	return expr
 }
 
@@ -178,21 +192,22 @@ func (expr Comment) String() string {
 	return expr.text
 }
 
-/*
+
 type List interface {
-	Head() Expression
+	Head() Node
 	Tail() List
 }
 */
 
 type Func struct {
+	NodeType
 	mode  FuncType
 	class FuncClass
-	bi    func(*Env, []Expression) Expression
-	ud    Expression
+	bi    func(*Env, []Node) Node
+	ud    Node
 }
 
-func (expr Func) Value(env *Env) Expression {
+func (expr Func) Value(env *Env) Node {
 	return expr
 }
 
@@ -200,11 +215,16 @@ func (expr Func) String() string {
 	return fmt.Sprintf("%v, %v", expr.mode, expr.class)
 }
 
+func (expr Func) Copy() Node {
+	return expr
+}
+
+/*
 type Sentinel struct {
 	val int
 }
 
-func (expr Sentinel) Value(env *Env) Expression {
+func (expr Sentinel) Value(env *Env) Node {
 	return expr
 }
 
@@ -219,22 +239,23 @@ var ExprMarker = &Sentinel{val: 2}
 
 var ExprIntSize = 64
 var ExprFloatSize = 64
+*/
 
 func Begin() *Env {
-	global := Vars{ctx: map[Word]chan Expression{}, next: nil}
-	local := Vars{ctx: map[Word]chan Expression{}, next: nil}
+	global := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
+	local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
-	global.ctx[NewWord("exit")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: exit})
-	global.ctx[NewWord("fold")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fold})
-	global.ctx[NewWord("map")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fmap})
-	global.ctx[NewWord("quote")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: quote})
-	global.ctx[NewWord("print")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: print})
-	global.ctx[NewWord("prod$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
-	global.ctx[NewWord("prod$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodint})
-	global.ctx[NewWord("prog")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: prog})
-	global.ctx[NewWord("set")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: set})
-	global.ctx[NewWord("sum$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
-	global.ctx[NewWord("sum$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumint})
+	global.ctx[newIdentNode("exit")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: exit})
+	global.ctx[newIdentNode("fold")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fold})
+	global.ctx[newIdentNode("map")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fmap})
+	global.ctx[newIdentNode("quote")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: quote})
+	global.ctx[newIdentNode("print")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: print})
+	global.ctx[newIdentNode("prod$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
+	global.ctx[newIdentNode("prod$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodint})
+	global.ctx[newIdentNode("prog")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: prog})
+	global.ctx[newIdentNode("set")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: set})
+	global.ctx[newIdentNode("sum$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
+	global.ctx[newIdentNode("sum$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumint})
 
 	env := &Env{
 		globalVars: &global,
@@ -242,23 +263,23 @@ func Begin() *Env {
 		current:    &local,
 	}
 
-	env.parser = env.NewParser()
+	//env.parser = env.NewParser()
 
 	return env
 }
 
-func (env *Env) Eval(args ...Expression) Expression {
-	var ret Expression
+func (env *Env) Eval(args ...Node) Node {
+	var ret Node
 	for _, expr := range args {
 		ret = expr.Value(env)
 	}
 	return ret
 }
 
-func (env *Env) SourceExpressions(expressions []Expression) Expression {
-	log.Println("SourceExpression: started")
-	var result Expression
-	for _, expr := range expressions {
+func (env *Env) SourceNodes(nodes []Node) Node {
+	log.Println("SourceNode: started")
+	var result Node
+	for _, expr := range nodes {
 		log.Println("Source:", expr.String())
 		result = expr.Value(env)
 		log.Println("Result:", result)
@@ -266,15 +287,15 @@ func (env *Env) SourceExpressions(expressions []Expression) Expression {
 	return result
 }
 
-func (env *Env) SourceStream(stream io.RuneScanner) Expression {
-	//log.Println("SourceStream: started")
-	env.parser.Start()
-	env.parser.ResetAddNewInput(stream)
-	expressions, err := env.parser.ParseTokens()
-	if err != nil {
-		return NewWord(fmt.Sprintf(
-			"Error parsing on line %d: %v\n", env.parser.lexer.Linenum(), err))
-	}
+//func (env *Env) SourceStream(stream io.RuneScanner) Node {
+//log.Println("SourceStream: started")
+//env.parser.Start()
+//env.parser.ResetAddNewInput(stream)
+//Nodes, err := env.parser.ParseTokens()
+//if err != nil {
+//	return NewWord(fmt.Sprintf(
+//		"Error parsing on line %d: %v\n", env.parser.lexer.Linenum(), err))
+//}
 
-	return env.SourceExpressions(expressions)
-}
+//return env.SourceNodes(Nodes)
+//}

@@ -39,6 +39,8 @@ const (
 	ItemQuasiQuote
 	ItemUnquote
 	ItemUnquoteSplice
+
+	ItemRef
 )
 
 const EOF = -1
@@ -55,8 +57,9 @@ type Lexer struct {
 	lastPos Pos
 	items   chan Item
 
-	parenDepth int
-	vectDepth  int
+	//parenDepth int
+	//vectDepth  int
+	//curlDepth  int
 }
 
 // next returns the next rune in the input.
@@ -192,6 +195,8 @@ func lexWhitespace(l *Lexer) stateFn {
 		return lexNumber
 	case r == ';':
 		return lexComment
+	case r == '.' || r == ':':
+		return lexRef
 	case isAlphaNumeric(r):
 		return lexIdentifier
 	default:
@@ -218,6 +223,15 @@ func lexIdentifier(l *Lexer) stateFn {
 	l.backup()
 
 	l.emit(ItemIdent)
+	return lexWhitespace
+}
+
+func lexRef(l *Lexer) stateFn {
+	for r := l.next(); isAlphaNumeric(r); r = l.next() {
+	}
+	l.backup()
+
+	l.emit(ItemRef)
 	return lexWhitespace
 }
 

@@ -166,7 +166,7 @@ func (node CallNode) Copy() Node {
 
 func (node CallNode) String() string {
 	args := fmt.Sprint(node.Args)
-	return fmt.Sprintf("(%s %s)", node.Callee, args[1:len(args)-1])
+	return fmt.Sprintf("{%s %s}", node.Callee, args[1:len(args)-1])
 }
 
 func (node CallNode) Value(env *Env) Node {
@@ -196,6 +196,8 @@ func parser(l *Lexer, tree []Node, lookingFor rune) []Node {
 		switch t := item.Type; t {
 		case ItemIdent:
 			tree = append(tree, newIdentNode(item.Value))
+		case ItemRef:
+			tree = append(tree, newRefNode(item.Value))
 		case ItemString:
 			tree = append(tree, newStringNode(item.Value))
 		case ItemInt:

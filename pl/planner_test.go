@@ -72,4 +72,28 @@ func TestLang(t *testing.T) {
 		fmt.Printf("%v\n", res)
 	}
 
+	if res := Begin().Eval(ParseFromString("<STRING>", "{prog (X Y Z) {set X 1} {set Y 2} {set Z 3} {fold prod$int 1 (.X .Y .Z)}}"+"\n")...); res.String() != "6" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "6", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "{prog ((X 3.7) (Y 5.4) (Z 7.2)) {fold prod$float 1 (.X .Y .Z)}}"+"\n")...); res.String() != "143.856000" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "6", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "{prog (X Y Z) {set X 1} {set Y 2} {set Z 3} {fold sub$int 6 (.X .Y .Z)}}"+"\n")...); res.String() != "0" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "0", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "{prog ((X 3.7) (Y 5.4) (Z 7.2)) {fold sub$float 100 (.X .Y .Z)}}"+"\n")...); res.String() != "83.700000" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "83.700000", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
 }

@@ -57,12 +57,19 @@ type Node interface {
 
 type RefNode struct {
 	NodeType
+	val  string
 	mode RefType
 	ref  IdentNode
 }
 
-func newRefNode(refType RefType, word IdentNode) RefNode {
-	return RefNode{mode: refType, ref: word}
+func newRefNode(val string) RefNode {
+	switch val[0] {
+	case '.':
+		return RefNode{val: val, mode: LocalValue, ref: newIdentNode(val[1:])}
+	case ':':
+		return RefNode{val: val, mode: GlobalValue, ref: newIdentNode(val[1:])}
+	}
+	return newRefNode(":<unexpected reference char>")
 }
 
 func (expr RefNode) Value(env *Env) Node {
@@ -76,7 +83,7 @@ func (expr RefNode) Value(env *Env) Node {
 					select {
 					case val = <-ch:
 						log.Println("Ref Value:", expr.ref, val)
-						//ch <- val
+						ch <- val
 						return val
 					case <-time.After(time.Second * 5):
 						log.Println("Ref Value timeout", expr.ref)
@@ -93,6 +100,27 @@ func (expr RefNode) Value(env *Env) Node {
 			}
 			vars = vars.next
 		}
+	case GlobalValue:
+		if ch, ok := env.globalVars.ctx[expr.ref]; ok {
+			if ch != nil {
+				var val Node
+				select {
+				case val = <-ch:
+					log.Println("Ref Value:", expr.ref, val)
+					ch <- val
+					return val
+				case <-time.After(time.Second * 5):
+					log.Println("Ref Value timeout", expr.ref)
+					return newIdentNode("<timeout>")
+				}
+			} else {
+				fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
+				return newIdentNode("<unassigned>")
+			}
+		} else {
+			fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
+			return newIdentNode("<unbound>")
+		}
 	}
 	return newIdentNode("<unexpected>")
 }
@@ -102,7 +130,7 @@ func (expr RefNode) String() string {
 }
 
 func (expr RefNode) Copy() Node {
-	return newRefNode(expr.mode, expr.ref)
+	return newRefNode(expr.val)
 }
 
 /*
@@ -245,6 +273,9 @@ func Begin() *Env {
 	global := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 	local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
+	global.ctx[newIdentNode("def")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: def})
+	global.ctx[newIdentNode("div$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: divfloat})
+	global.ctx[newIdentNode("div$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: divint})
 	global.ctx[newIdentNode("exit")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: exit})
 	global.ctx[newIdentNode("fold")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fold})
 	global.ctx[newIdentNode("map")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fmap})
@@ -254,6 +285,8 @@ func Begin() *Env {
 	global.ctx[newIdentNode("prod$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodint})
 	global.ctx[newIdentNode("prog")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: prog})
 	global.ctx[newIdentNode("set")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: set})
+	global.ctx[newIdentNode("sub$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: subfloat})
+	global.ctx[newIdentNode("sub$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: subint})
 	global.ctx[newIdentNode("sum$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
 	global.ctx[newIdentNode("sum$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumint})
 

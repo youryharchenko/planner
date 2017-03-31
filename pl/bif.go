@@ -7,8 +7,51 @@ import (
 	"time"
 )
 
-func quote(env *Env, args []Node) Node {
-	return args[0]
+func def(env *Env, args []Node) Node {
+	ident := args[0].(IdentNode)
+	val := args[1].Value(env)
+	env.globalVars.ctx[ident] = makeVar(val)
+	return val
+}
+
+func divfloat(env *Env, args []Node) Node {
+	var d float64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d = float64(args[0].(NumberNode).Int)
+	case token.FLOAT:
+		d = args[0].(NumberNode).Float
+	}
+
+	for _, arg := range args[1:] {
+		switch arg.(NumberNode).NumberType {
+		case token.INT:
+			d /= float64(arg.(NumberNode).Int)
+		case token.FLOAT:
+			d /= arg.(NumberNode).Float
+		}
+	}
+	return newFloatNode(fmt.Sprintf("%f", d))
+}
+
+func divint(env *Env, args []Node) Node {
+	var d int64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d = args[0].(NumberNode).Int
+	case token.FLOAT:
+		d = round(args[0].(NumberNode).Float)
+	}
+
+	for _, arg := range args[1:] {
+		switch arg.(NumberNode).NumberType {
+		case token.INT:
+			d /= arg.(NumberNode).Int
+		case token.FLOAT:
+			d /= round(arg.(NumberNode).Float)
+		}
+	}
+	return newIntNode(fmt.Sprintf("%d", d))
 }
 
 func exit(env *Env, args []Node) Node {
@@ -93,6 +136,10 @@ Loop:
 	return ret
 }
 
+func quote(env *Env, args []Node) Node {
+	return args[0]
+}
+
 func set(env *Env, args []Node) Node {
 	word := args[0].(IdentNode)
 	vars := env.current
@@ -134,6 +181,46 @@ func prodint(env *Env, args []Node) Node {
 		}
 	}
 	return newIntNode(fmt.Sprintf("%d", p))
+}
+
+func subfloat(env *Env, args []Node) Node {
+	var s float64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		s = float64(args[0].(NumberNode).Int)
+	case token.FLOAT:
+		s = args[0].(NumberNode).Float
+	}
+
+	for _, arg := range args[1:] {
+		switch arg.(NumberNode).NumberType {
+		case token.INT:
+			s -= float64(arg.(NumberNode).Int)
+		case token.FLOAT:
+			s -= arg.(NumberNode).Float
+		}
+	}
+	return newFloatNode(fmt.Sprintf("%f", s))
+}
+
+func subint(env *Env, args []Node) Node {
+	var s int64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		s = args[0].(NumberNode).Int
+	case token.FLOAT:
+		s = round(args[0].(NumberNode).Float)
+	}
+
+	for _, arg := range args[1:] {
+		switch arg.(NumberNode).NumberType {
+		case token.INT:
+			s -= arg.(NumberNode).Int
+		case token.FLOAT:
+			s -= round(arg.(NumberNode).Float)
+		}
+	}
+	return newIntNode(fmt.Sprintf("%d", s))
 }
 
 func sumfloat(env *Env, args []Node) Node {

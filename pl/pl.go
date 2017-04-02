@@ -3,10 +3,9 @@ package pl
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
-
-//var Q = func(quietly_ignored ...interface{}) {}
 
 type RefType int
 
@@ -23,7 +22,7 @@ type FuncType int
 
 const (
 	BuiltIn FuncType = iota
-	Userdef
+	UserDef
 )
 
 type FuncClass int
@@ -39,21 +38,17 @@ type Vars struct {
 	exit chan Node
 	cont bool
 	next *Vars
+
+	lock sync.RWMutex
 }
 
 type Env struct {
-	//parser     *Parser
 	globalVars *Vars
 	localVars  *Vars
 	current    *Vars
-}
 
-/*
-type Node interface {
-	Value(env *Env) Node
-	String() string
+	lock sync.RWMutex
 }
-*/
 
 type RefNode struct {
 	NodeType
@@ -77,6 +72,7 @@ func (expr RefNode) Value(env *Env) Node {
 	case LocalValue:
 		vars := env.current
 		for {
+			vars.lock.RLock()
 			if ch, ok := vars.ctx[expr.ref]; ok {
 				if ch != nil {
 					var val Node
@@ -94,13 +90,18 @@ func (expr RefNode) Value(env *Env) Node {
 					return newIdentNode("<unassigned>")
 				}
 			}
+
 			if vars.next == nil {
 				fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
 				return newIdentNode("<unbound>")
 			}
-			vars = vars.next
+			nvars := vars.next
+			vars.lock.RUnlock()
+			vars = nvars
 		}
 	case GlobalValue:
+		env.globalVars.lock.RLock()
+		defer env.globalVars.lock.RUnlock()
 		if ch, ok := env.globalVars.ctx[expr.ref]; ok {
 			if ch != nil {
 				var val Node
@@ -133,106 +134,12 @@ func (expr RefNode) Copy() Node {
 	return newRefNode(expr.val)
 }
 
-/*
-type Word struct {
-	word string
-}
-
-func NewWord(word string) Word {
-	return Word{word: word}
-}
-
-func (expr Word) Value(env *Env) Node {
-	return expr
-}
-
-func (expr Word) String() string {
-	return expr.word
-}
-
-type Pair struct {
-	head Node
-	tail Node
-}
-
-func NewPair(head Node, tail Node) Pair {
-	return Pair{head: head, tail: tail}
-}
-
-func (expr Pair) Value(env *Env) Node {
-	return expr
-}
-
-func (expr Pair) String() string {
-	return expr.head.String() + " : " + expr.tail.String()
-}
-
-type Number interface {
-	Float() float64
-	Int() int64
-}
-
-type Int struct {
-	number int64
-}
-
-func NewInt(number int64) Int {
-	return Int{number: number}
-}
-
-func (expr Int) Value(env *Env) Node {
-	return expr
-}
-
-func (expr Int) String() string {
-	return fmt.Sprintf("%d", expr.number)
-}
-
-type Float struct {
-	number float64
-}
-
-func NewFloat(number float64) Float {
-	return Float{number: number}
-}
-
-func (expr Float) Value(env *Env) Node {
-	return expr
-}
-
-func (expr Float) String() string {
-	return fmt.Sprintf("%f", expr.number)
-}
-
-type Comment struct {
-	text string
-}
-
-func NewComment(text string) Comment {
-	return Comment{text: text}
-}
-
-func (expr Comment) Value(env *Env) Node {
-	return expr
-}
-
-func (expr Comment) String() string {
-	return expr.text
-}
-
-
-type List interface {
-	Head() Node
-	Tail() List
-}
-*/
-
 type Func struct {
 	NodeType
 	mode  FuncType
 	class FuncClass
 	bi    func(*Env, []Node) Node
-	ud    Node
+	ud    *Lambda
 }
 
 func (expr Func) Value(env *Env) Node {
@@ -247,56 +154,106 @@ func (expr Func) Copy() Node {
 	return expr
 }
 
-/*
-type Sentinel struct {
-	val int
+type Lambda struct {
+	env  *Env
+	arg  Node
+	body []Node
 }
 
-func (expr Sentinel) Value(env *Env) Node {
-	return expr
+func (fn *Lambda) apply(args []Node, env *Env) Node {
+	//log.Println(args)
+	var vars ListNode
+	switch fn.arg.Type() {
+	case NodeIdent:
+		var ident IdentNode
+		var param Node
+		arg := fn.arg.(IdentNode)
+
+		if arg.Ident[0] == '*' {
+			ident = newIdentNode(arg.Ident[1:])
+			param = newListNode(args)
+		} else {
+			ident = newIdentNode(arg.Ident)
+			list := make([]Node, len(args))
+			for i, a := range args {
+				list[i] = a.Value(env)
+			}
+			param = newListNode(list)
+		}
+		vars = newListNode([]Node{newListNode([]Node{ident, param})})
+
+	case NodeList:
+		lst := fn.arg.(ListNode)
+		list := make([]Node, len(lst.Nodes))
+		for i, a := range lst.Nodes {
+			ident := a.(IdentNode)
+			var param Node
+			if ident.Ident[0] == '*' {
+				ident = newIdentNode(ident.Ident[1:])
+				param = args[i]
+			} else {
+				param = args[i].Value(env)
+			}
+			list[i] = newListNode([]Node{ident, param})
+		}
+		vars = newListNode(list)
+	}
+
+	fn.env.new_current_local(vars)
+
+	go fn.env.run_stmt(fn.body)
+
+	var ret Node
+Loop:
+	for {
+		select {
+		case ret = <-env.current.ret:
+			log.Println("lambda: select ret", ret)
+			break Loop
+		case ret = <-env.current.exit:
+			log.Println("lambda: select exit", ret)
+			break Loop
+		case <-time.After(time.Second * 5):
+			ret = newIdentNode("<timeout>")
+			log.Println("lambda: select timeout")
+			break Loop
+		}
+
+	}
+
+	fn.env.del_current_local()
+	return ret
+
 }
-
-func (expr Sentinel) String() string {
-	return fmt.Sprintf("Sentinel:%d", expr.val)
-}
-
-// these are values now so that they also have addresses.
-var ExprNull = &Sentinel{val: 0}
-var ExprEnd = &Sentinel{val: 1}
-var ExprMarker = &Sentinel{val: 2}
-
-var ExprIntSize = 64
-var ExprFloatSize = 64
-*/
 
 func Begin() *Env {
+
 	global := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 	local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
-	global.ctx[newIdentNode("def")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: def})
-	global.ctx[newIdentNode("div$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: divfloat})
-	global.ctx[newIdentNode("div$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: divint})
-	global.ctx[newIdentNode("exit")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: exit})
-	global.ctx[newIdentNode("fold")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fold})
-	global.ctx[newIdentNode("map")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: fmap})
-	global.ctx[newIdentNode("quote")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: quote})
-	global.ctx[newIdentNode("print")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: print})
-	global.ctx[newIdentNode("prod$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
-	global.ctx[newIdentNode("prod$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: prodint})
-	global.ctx[newIdentNode("prog")] = makeVar(Func{mode: BuiltIn, class: FSubr, bi: prog})
-	global.ctx[newIdentNode("set")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: set})
-	global.ctx[newIdentNode("sub$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: subfloat})
-	global.ctx[newIdentNode("sub$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: subint})
-	global.ctx[newIdentNode("sum$float")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
-	global.ctx[newIdentNode("sum$int")] = makeVar(Func{mode: BuiltIn, class: Subr, bi: sumint})
+	global.ctx[newIdentNode("def")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: def})
+	global.ctx[newIdentNode("div$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divfloat})
+	global.ctx[newIdentNode("div$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divint})
+	global.ctx[newIdentNode("exit")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: exit})
+	global.ctx[newIdentNode("fold")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fold})
+	global.ctx[newIdentNode("map")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fmap})
+	global.ctx[newIdentNode("quote")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: quote})
+	global.ctx[newIdentNode("print")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: print})
+	global.ctx[newIdentNode("prod$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
+	global.ctx[newIdentNode("prod$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: prodint})
+	global.ctx[newIdentNode("prog")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: prog})
+	global.ctx[newIdentNode("set")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: set})
+	global.ctx[newIdentNode("sub$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: subfloat})
+	global.ctx[newIdentNode("sub$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: subint})
+	global.ctx[newIdentNode("sum$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
+	global.ctx[newIdentNode("sum$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: sumint})
 
 	env := &Env{
 		globalVars: &global,
 		localVars:  &local,
 		current:    &local,
+		lock:       sync.RWMutex{},
 	}
-
-	//env.parser = env.NewParser()
 
 	return env
 }
@@ -319,16 +276,3 @@ func (env *Env) SourceNodes(nodes []Node) Node {
 	}
 	return result
 }
-
-//func (env *Env) SourceStream(stream io.RuneScanner) Node {
-//log.Println("SourceStream: started")
-//env.parser.Start()
-//env.parser.ResetAddNewInput(stream)
-//Nodes, err := env.parser.ParseTokens()
-//if err != nil {
-//	return NewWord(fmt.Sprintf(
-//		"Error parsing on line %d: %v\n", env.parser.lexer.Linenum(), err))
-//}
-
-//return env.SourceNodes(Nodes)
-//}

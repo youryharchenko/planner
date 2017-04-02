@@ -9,9 +9,35 @@ import (
 
 func def(env *Env, args []Node) Node {
 	ident := args[0].(IdentNode)
-	val := args[1].Value(env)
-	env.globalVars.ctx[ident] = makeVar(val)
-	return val
+	val := args[1]
+	var ret Node
+
+	if val.Type() == NodeList {
+		list := val.(ListNode)
+		if list.Nodes[0].Type() == NodeIdent {
+			id := list.Nodes[0].(IdentNode)
+			switch id.Ident {
+			case "lambda":
+				val = Func{mode: UserDef, ud: &Lambda{env: env, arg: list.Nodes[1], body: list.Nodes[2:]}}
+				ret = list
+			default:
+				val = args[1].Value(env)
+				ret = val
+			}
+		} else {
+			val = args[1].Value(env)
+			ret = val
+		}
+	} else {
+		val = args[1].Value(env)
+		ret = val
+	}
+
+	env.globalVars.lock.Lock()
+	env.globalVars.ctx[ident] = makeVar(&val)
+	env.globalVars.lock.Unlock()
+
+	return ret
 }
 
 func divfloat(env *Env, args []Node) Node {
@@ -55,6 +81,9 @@ func divint(env *Env, args []Node) Node {
 }
 
 func exit(env *Env, args []Node) Node {
+	env.current.lock.Lock()
+	defer env.current.lock.Unlock()
+
 	env.current.cont = false
 	env.current.exit <- args[0]
 	return args[0]
@@ -67,9 +96,6 @@ func fold(env *Env, args []Node) Node {
 	f := findFunc(word, env)
 
 	env.new_current_local(newListNode([]Node{}))
-
-	env.current.ret = make(chan Node)
-	env.current.cont = true
 
 	go env.run_fold(f, init, list[:])
 
@@ -86,9 +112,6 @@ func fmap(env *Env, args []Node) Node {
 
 	new_list := []Node{}
 	env.new_current_local(newListNode(new_list))
-
-	env.current.ret = make(chan Node)
-	env.current.cont = true
 
 	go env.run_map(f, new_list[:], list[:])
 
@@ -108,10 +131,6 @@ func print(env *Env, args []Node) Node {
 func prog(env *Env, args []Node) Node {
 	vars := args[0].(ListNode)
 	env.new_current_local(vars)
-
-	env.current.ret = make(chan Node)
-	env.current.exit = make(chan Node)
-	env.current.cont = true
 
 	go env.run_stmt(args[1:])
 
@@ -142,8 +161,13 @@ func quote(env *Env, args []Node) Node {
 
 func set(env *Env, args []Node) Node {
 	word := args[0].(IdentNode)
+
+	env.lock.RLock()
 	vars := env.current
+	env.lock.RUnlock()
+
 	for {
+		vars.lock.RLock()
 		if _, ok := vars.ctx[word]; ok {
 			vars.ctx[word] <- args[1]
 			return args[1]
@@ -152,7 +176,9 @@ func set(env *Env, args []Node) Node {
 			fmt.Println(fmt.Sprintf("Variable %s <unbound>", word.String()))
 			return newIdentNode("<unbound>")
 		}
-		vars = vars.next
+		nvars := vars.next
+		vars.lock.Unlock()
+		vars = nvars
 	}
 	//return args[1]
 }

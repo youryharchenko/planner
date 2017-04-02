@@ -30,6 +30,13 @@ func TestSICP(t *testing.T) {
 		Test{"{prod$float :pi :radius :radius}", "314.159000"},
 		Test{"{def circum {prod$float 2 :pi :radius}}", "62.831800"},
 		Test{":circum", "62.831800"},
+		Test{"{def square (lambda (x) {prod$int .x .x})}", "(lambda (x) {prod$int .x .x})"},
+		Test{"{square 21}", "441"},
+		Test{"{square {sum$int 2 5}}", "49"},
+		Test{"{square {square 3}}", "81"},
+		Test{"{def sum-of-squares (lambda (x y) {sum$int {square .x} {square .y}})}", "(lambda (x y) {sum$int {square .x} {square .y}})"},
+		Test{"{sum-of-squares 3 4}", "25"},
+		Test{"{def f (lambda (a) {sum-of-squares {sum$int .a 1} {prod$int .a 2}})}{f 5}", "136"},
 	}
 	env := Begin()
 	for i, test := range tests {

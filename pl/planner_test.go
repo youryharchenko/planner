@@ -96,4 +96,22 @@ func TestLang(t *testing.T) {
 		fmt.Printf("%v\n", res)
 	}
 
+	if res := Begin().Eval(ParseFromString("<STRING>", "{prog ((f fold) (X 3.7) (Y 5.4) (Z 7.2)) {.f sub$float 100 (.X .Y .Z)}}"+"\n")...); res.String() != "83.700000" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "83.700000", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "{def f (lambda *p {fold sum$int 0 .p})} {f 1 2 3 4 5}"+"\n")...); res.String() != "15" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "15", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "{def f (lambda *p {fold sum$int 0 .p})} {f {sum$int 1 2} 3 4 5}"+"\n")...); res.String() != "15" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "15", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
 }

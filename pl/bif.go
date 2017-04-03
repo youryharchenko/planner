@@ -80,6 +80,14 @@ func divint(env *Env, args []Node) Node {
 	return newIntNode(fmt.Sprintf("%d", d))
 }
 
+func eq(env *Env, args []Node) Node {
+	if args[0].String() == args[1].String() {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
+}
+
 func exit(env *Env, args []Node) Node {
 	env.current.lock.Lock()
 	defer env.current.lock.Unlock()
@@ -119,6 +127,22 @@ func fmap(env *Env, args []Node) Node {
 
 	env.del_current_local()
 	return ret
+}
+
+func neq(env *Env, args []Node) Node {
+	if args[0].String() != args[1].String() {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
+}
+
+func not(env *Env, args []Node) Node {
+	if args[0].String() == "()" {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
 }
 
 func print(env *Env, args []Node) Node {
@@ -273,4 +297,25 @@ func sumint(env *Env, args []Node) Node {
 		}
 	}
 	return newIntNode(fmt.Sprintf("%d", s))
+}
+
+func type_(env *Env, args []Node) Node {
+	var t string
+	switch args[0].Type() {
+	case NodeCall:
+		t = "Call"
+	case NodeIdent:
+		t = "Id"
+	case NodeList:
+		t = "List"
+	case NodeNumber:
+		t = "Num"
+	case NodeRef:
+		t = "Ref"
+	case NodeString:
+		t = "Str"
+	case NodeVector:
+		t = "Vect"
+	}
+	return newIdentNode(t)
 }

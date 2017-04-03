@@ -60,9 +60,9 @@ type RefNode struct {
 func newRefNode(val string) RefNode {
 	switch val[0] {
 	case '.':
-		return RefNode{val: val, mode: LocalValue, ref: newIdentNode(val[1:])}
+		return RefNode{NodeType: NodeRef, val: val, mode: LocalValue, ref: newIdentNode(val[1:])}
 	case ':':
-		return RefNode{val: val, mode: GlobalValue, ref: newIdentNode(val[1:])}
+		return RefNode{NodeType: NodeRef, val: val, mode: GlobalValue, ref: newIdentNode(val[1:])}
 	}
 	return newRefNode(":<unexpected reference char>")
 }
@@ -234,9 +234,12 @@ func Begin() *Env {
 	global.ctx[newIdentNode("def")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: def})
 	global.ctx[newIdentNode("div$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divfloat})
 	global.ctx[newIdentNode("div$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divint})
+	global.ctx[newIdentNode("eq")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: eq})
 	global.ctx[newIdentNode("exit")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: exit})
 	global.ctx[newIdentNode("fold")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fold})
 	global.ctx[newIdentNode("map")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fmap})
+	global.ctx[newIdentNode("neq")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: neq})
+	global.ctx[newIdentNode("not")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: not})
 	global.ctx[newIdentNode("quote")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: quote})
 	global.ctx[newIdentNode("print")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: print})
 	global.ctx[newIdentNode("prod$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
@@ -247,6 +250,7 @@ func Begin() *Env {
 	global.ctx[newIdentNode("sub$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: subint})
 	global.ctx[newIdentNode("sum$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
 	global.ctx[newIdentNode("sum$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: sumint})
+	global.ctx[newIdentNode("type")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: type_})
 
 	env := &Env{
 		globalVars: &global,

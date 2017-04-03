@@ -33,6 +33,7 @@ const (
 	NodeCall
 	NodeVector
 	NodeList
+	NodeRef
 )
 
 type IdentNode struct {

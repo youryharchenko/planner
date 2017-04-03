@@ -114,4 +114,28 @@ func TestLang(t *testing.T) {
 		fmt.Printf("%v\n", res)
 	}
 
+	if res := Begin().Eval(ParseFromString("<STRING>", "{map type ({quote{quote{print z}}} {quote{quote .z}} X (a b c) 12 \"Hello\" [1 2 3])}"+"\n")...); res.String() != "(Call Ref Id List Num Str Vect)" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "(Call Id List Num Str Vect)", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "({eq 1 2} {eq 3 3} {eq 3 3.0} {eq () ()} {eq {quote{print z}} {quote{print z}}} {eq {quote .z} {quote .z}} {eq [1 2 3] (1 2 3)})"+"\n")...); res.String() != "(() T () T T T ())" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "(() T () T T T ())", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "({neq 1 2} {neq 3 3} {neq 3 3.0} {neq () ()} {neq {quote{print z}} {quote{print z}}} {neq {quote .z} {quote .z}} {neq [1 2 3] (1 2 3)})"+"\n")...); res.String() != "(T () T () () () T)" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "(T () T () () () T)", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
+	if res := Begin().Eval(ParseFromString("<STRING>", "({not A} {not 3} {not (3 3.0)} {not ()})"+"\n")...); res.String() != "(() () () T)" {
+		t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", "(() () () T)", res))
+	} else {
+		fmt.Printf("%v\n", res)
+	}
+
 }

@@ -38,6 +38,7 @@ func TestSICP(t *testing.T) {
 		Test{"{sum-of-squares 3 4}", "25"},
 		Test{"{def f (lambda (a) {sum-of-squares {sum$int .a 1} {prod$int .a 2}})}{f 5}", "136"},
 	}
+
 	env := Begin()
 	for i, test := range tests {
 		log.Println(i, test.text, "->", test.res)

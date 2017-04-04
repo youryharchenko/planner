@@ -78,7 +78,7 @@ func (expr RefNode) Value(env *Env) Node {
 					var val Node
 					select {
 					case val = <-ch:
-						log.Println("Ref Value:", expr.ref, val)
+						//log.Println("Ref Value:", expr.ref, val)
 						ch <- val
 						return val
 					case <-time.After(time.Second * 5):
@@ -107,7 +107,7 @@ func (expr RefNode) Value(env *Env) Node {
 				var val Node
 				select {
 				case val = <-ch:
-					log.Println("Ref Value:", expr.ref, val)
+					//log.Println("Ref Value:", expr.ref, val)
 					ch <- val
 					return val
 				case <-time.After(time.Second * 5):
@@ -202,25 +202,26 @@ func (fn *Lambda) apply(args []Node, env *Env) Node {
 	fn.env.new_current_local(vars)
 
 	go fn.env.run_stmt(fn.body)
+	/*
+			var ret Node
+		Loop:
+			for {
+				select {
+				case ret = <-env.current.ret:
+					log.Println("lambda: select ret", ret)
+					break Loop
+				case ret = <-env.current.exit:
+					log.Println("lambda: select exit", ret)
+					break Loop
+				case <-time.After(time.Second * 5):
+					ret = newIdentNode("<timeout>")
+					log.Println("lambda: select timeout")
+					break Loop
+				}
 
-	var ret Node
-Loop:
-	for {
-		select {
-		case ret = <-env.current.ret:
-			log.Println("lambda: select ret", ret)
-			break Loop
-		case ret = <-env.current.exit:
-			log.Println("lambda: select exit", ret)
-			break Loop
-		case <-time.After(time.Second * 5):
-			ret = newIdentNode("<timeout>")
-			log.Println("lambda: select timeout")
-			break Loop
-		}
-
-	}
-
+			}
+	*/
+	ret := env.wait_return()
 	fn.env.del_current_local()
 	return ret
 
@@ -231,15 +232,21 @@ func Begin() *Env {
 	global := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 	local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
+	global.ctx[newIdentNode("abs$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: absfloat})
+	global.ctx[newIdentNode("and")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: and})
+	global.ctx[newIdentNode("cond")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: cond})
 	global.ctx[newIdentNode("def")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: def})
 	global.ctx[newIdentNode("div$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divfloat})
 	global.ctx[newIdentNode("div$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divint})
 	global.ctx[newIdentNode("eq")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: eq})
+	global.ctx[newIdentNode("eval")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: eval})
 	global.ctx[newIdentNode("exit")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: exit})
 	global.ctx[newIdentNode("fold")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fold})
+	global.ctx[newIdentNode("lt$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: ltfloat})
 	global.ctx[newIdentNode("map")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fmap})
 	global.ctx[newIdentNode("neq")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: neq})
 	global.ctx[newIdentNode("not")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: not})
+	global.ctx[newIdentNode("or")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: or})
 	global.ctx[newIdentNode("quote")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: quote})
 	global.ctx[newIdentNode("print")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: print})
 	global.ctx[newIdentNode("prod$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
@@ -270,6 +277,7 @@ func (env *Env) Eval(args ...Node) Node {
 	return ret
 }
 
+/*
 func (env *Env) SourceNodes(nodes []Node) Node {
 	log.Println("SourceNode: started")
 	var result Node
@@ -280,3 +288,4 @@ func (env *Env) SourceNodes(nodes []Node) Node {
 	}
 	return result
 }
+*/

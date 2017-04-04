@@ -3,6 +3,7 @@ package pl
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 func (env *Env) new_current_local(vars ListNode) {
@@ -56,6 +57,108 @@ func (env *Env) run_stmt(args []Node) {
 			go env.run_stmt(args[1:])
 			args[0].Value(env)
 		}
+	}
+}
+
+func (env *Env) wait_return() Node {
+	var ret Node
+Loop:
+	for {
+		select {
+		case ret = <-env.current.ret:
+			//log.Println("prog: select ret", ret)
+			break Loop
+		case ret = <-env.current.exit:
+			//log.Println("prog: select exit", ret)
+			break Loop
+		case <-time.After(time.Second * 5):
+			ret = newIdentNode("<timeout>")
+			//log.Println("prog: select timeout")
+			break Loop
+		}
+	}
+	return ret
+}
+
+func (env *Env) run_cond(args []Node) {
+	list := args[0].(ListNode)
+
+	if val := list.Nodes[0].Value(env); val.String() == "()" && len(args) > 1 {
+		env.current.lock.RLock()
+		if env.current.cont {
+			env.current.lock.RUnlock()
+			go env.run_cond(args[1:])
+		} else {
+			env.current.lock.RUnlock()
+		}
+	} else {
+		var ret Node
+		if val.String() == "()" {
+			ret = newListNode([]Node{})
+		} else {
+			env.current.lock.Lock()
+			env.current.cont = false
+			env.current.lock.Unlock()
+
+			env.new_current_local(newListNode([]Node{}))
+
+			go env.run_stmt(list.Nodes[1:])
+
+			ret = env.wait_return()
+
+			env.del_current_local()
+		}
+
+		env.current.ret <- ret
+
+	}
+}
+
+func (env *Env) run_or(args []Node) {
+
+	if val := args[0].Value(env); val.String() == "()" {
+		env.current.lock.RLock()
+		if env.current.cont && len(args) >= 1 {
+			env.current.lock.RUnlock()
+			if len(args) == 1 {
+				env.current.ret <- val
+			} else {
+				go env.run_or(args[1:])
+			}
+		} else {
+			env.current.lock.RUnlock()
+		}
+	} else {
+
+		env.current.lock.Lock()
+		env.current.cont = false
+		env.current.lock.Unlock()
+
+		env.current.ret <- val
+	}
+}
+
+func (env *Env) run_and(args []Node) {
+
+	if val := args[0].Value(env); val.String() != "()" {
+		env.current.lock.RLock()
+		if env.current.cont && len(args) >= 1 {
+			env.current.lock.RUnlock()
+			if len(args) == 1 {
+				env.current.ret <- val
+			} else {
+				go env.run_and(args[1:])
+			}
+		} else {
+			env.current.lock.RUnlock()
+		}
+	} else {
+
+		env.current.lock.Lock()
+		env.current.cont = false
+		env.current.lock.Unlock()
+
+		env.current.ret <- val
 	}
 }
 

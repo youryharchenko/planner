@@ -4,8 +4,42 @@ import (
 	"fmt"
 	"go/token"
 	"log"
-	"time"
+	"math"
 )
+
+func absfloat(env *Env, args []Node) Node {
+	var d float64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d = math.Abs(float64(args[0].(NumberNode).Int))
+	case token.FLOAT:
+		d = math.Abs(args[0].(NumberNode).Float)
+	}
+	return newFloat(d)
+}
+
+func and(env *Env, args []Node) Node {
+	env.new_current_local(newListNode([]Node{}))
+
+	go env.run_and(args[:])
+
+	//ret := <-env.current.ret
+	ret := env.wait_return()
+
+	env.del_current_local()
+	return ret
+}
+
+func cond(env *Env, args []Node) Node {
+	env.new_current_local(newListNode([]Node{}))
+
+	go env.run_cond(args[:])
+
+	ret := env.wait_return()
+
+	env.del_current_local()
+	return ret
+}
 
 func def(env *Env, args []Node) Node {
 	ident := args[0].(IdentNode)
@@ -57,7 +91,7 @@ func divfloat(env *Env, args []Node) Node {
 			d /= arg.(NumberNode).Float
 		}
 	}
-	return newFloatNode(fmt.Sprintf("%f", d))
+	return newFloat(d)
 }
 
 func divint(env *Env, args []Node) Node {
@@ -77,7 +111,7 @@ func divint(env *Env, args []Node) Node {
 			d /= round(arg.(NumberNode).Float)
 		}
 	}
-	return newIntNode(fmt.Sprintf("%d", d))
+	return newInt(d)
 }
 
 func eq(env *Env, args []Node) Node {
@@ -88,11 +122,16 @@ func eq(env *Env, args []Node) Node {
 	}
 }
 
+func eval(env *Env, args []Node) Node {
+	//log.Println(args[0])
+	return args[0].Value(env)
+}
+
 func exit(env *Env, args []Node) Node {
 	env.current.lock.Lock()
-	defer env.current.lock.Unlock()
-
 	env.current.cont = false
+	env.current.lock.Unlock()
+
 	env.current.exit <- args[0]
 	return args[0]
 }
@@ -107,7 +146,8 @@ func fold(env *Env, args []Node) Node {
 
 	go env.run_fold(f, init, list[:])
 
-	ret := <-env.current.ret
+	//ret := <-env.current.ret
+	ret := env.wait_return()
 
 	env.del_current_local()
 	return ret
@@ -123,10 +163,33 @@ func fmap(env *Env, args []Node) Node {
 
 	go env.run_map(f, new_list[:], list[:])
 
-	ret := <-env.current.ret
+	//ret := <-env.current.ret
+	ret := env.wait_return()
 
 	env.del_current_local()
 	return ret
+}
+
+func ltfloat(env *Env, args []Node) Node {
+	var d1, d2 float64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d1 = float64(args[0].(NumberNode).Int)
+	case token.FLOAT:
+		d1 = args[0].(NumberNode).Float
+	}
+	switch args[1].(NumberNode).NumberType {
+	case token.INT:
+		d2 = float64(args[1].(NumberNode).Int)
+	case token.FLOAT:
+		d2 = args[1].(NumberNode).Float
+	}
+	//log.Println(d1, d2, d1-d2)
+	if d1 < d2 {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
 }
 
 func neq(env *Env, args []Node) Node {
@@ -145,6 +208,18 @@ func not(env *Env, args []Node) Node {
 	}
 }
 
+func or(env *Env, args []Node) Node {
+	env.new_current_local(newListNode([]Node{}))
+
+	go env.run_or(args[:])
+
+	//ret := <-env.current.ret
+	ret := env.wait_return()
+
+	env.del_current_local()
+	return ret
+}
+
 func print(env *Env, args []Node) Node {
 	for _, arg := range args {
 		log.Println(arg.String())
@@ -157,24 +232,26 @@ func prog(env *Env, args []Node) Node {
 	env.new_current_local(vars)
 
 	go env.run_stmt(args[1:])
+	/*
+			var ret Node
+		Loop:
+			for {
+				select {
+				case ret = <-env.current.ret:
+					log.Println("prog: select ret", ret)
+					break Loop
+				case ret = <-env.current.exit:
+					log.Println("prog: select exit", ret)
+					break Loop
+				case <-time.After(time.Second * 5):
+					ret = newIdentNode("<timeout>")
+					log.Println("prog: select timeout")
+					break Loop
+				}
 
-	var ret Node
-Loop:
-	for {
-		select {
-		case ret = <-env.current.ret:
-			log.Println("prog: select ret", ret)
-			break Loop
-		case ret = <-env.current.exit:
-			log.Println("prog: select exit", ret)
-			break Loop
-		case <-time.After(time.Second * 5):
-			ret = newIdentNode("<timeout>")
-			log.Println("prog: select timeout")
-			break Loop
-		}
-
-	}
+			}
+	*/
+	ret := env.wait_return()
 	env.del_current_local()
 	return ret
 }
@@ -217,7 +294,7 @@ func prodfloat(env *Env, args []Node) Node {
 			p *= arg.(NumberNode).Float
 		}
 	}
-	return newFloatNode(fmt.Sprintf("%f", p))
+	return newFloat(p)
 }
 
 func prodint(env *Env, args []Node) Node {
@@ -230,7 +307,7 @@ func prodint(env *Env, args []Node) Node {
 			p *= round(arg.(NumberNode).Float)
 		}
 	}
-	return newIntNode(fmt.Sprintf("%d", p))
+	return newInt(p)
 }
 
 func subfloat(env *Env, args []Node) Node {
@@ -250,7 +327,7 @@ func subfloat(env *Env, args []Node) Node {
 			s -= arg.(NumberNode).Float
 		}
 	}
-	return newFloatNode(fmt.Sprintf("%f", s))
+	return newFloat(s)
 }
 
 func subint(env *Env, args []Node) Node {
@@ -270,7 +347,7 @@ func subint(env *Env, args []Node) Node {
 			s -= round(arg.(NumberNode).Float)
 		}
 	}
-	return newIntNode(fmt.Sprintf("%d", s))
+	return newInt(s)
 }
 
 func sumfloat(env *Env, args []Node) Node {
@@ -283,7 +360,7 @@ func sumfloat(env *Env, args []Node) Node {
 			s += arg.(NumberNode).Float
 		}
 	}
-	return newFloatNode(fmt.Sprintf("%f", s))
+	return newFloat(s)
 }
 
 func sumint(env *Env, args []Node) Node {
@@ -296,7 +373,7 @@ func sumint(env *Env, args []Node) Node {
 			s += round(arg.(NumberNode).Float)
 		}
 	}
-	return newIntNode(fmt.Sprintf("%d", s))
+	return newInt(s)
 }
 
 func type_(env *Env, args []Node) Node {

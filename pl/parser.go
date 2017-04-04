@@ -257,6 +257,16 @@ func newFloatNode(val string) NumberNode {
 	return NumberNode{NodeType: NodeNumber, Val: val, Float: f, NumberType: token.FLOAT}
 }
 
+func newFloat(f float64) NumberNode {
+	val := fmt.Sprintf("%f", f)
+	return NumberNode{NodeType: NodeNumber, Val: val, Float: f, NumberType: token.FLOAT}
+}
+
+func newInt(i int64) NumberNode {
+	val := fmt.Sprintf("%d", i)
+	return NumberNode{NodeType: NodeNumber, Val: val, Int: i, NumberType: token.INT}
+}
+
 func newComplexNode(val string) NumberNode {
 	return NumberNode{NodeType: NodeNumber, Val: val, NumberType: token.IMAG}
 }

@@ -66,11 +66,14 @@ func def(env *Env, args []Node) Node {
 		val = args[1].Value(env)
 		ret = val
 	}
-
-	env.globalVars.lock.Lock()
-	env.globalVars.ctx[ident] = makeVar(&val)
-	env.globalVars.lock.Unlock()
-
+	/*
+		env.globalVars.lock.Lock()
+		env.globalVars.ctx[ident] = makeVar(&val)
+		env.globalVars.lock.Unlock()
+	*/
+	env.current.lock.Lock()
+	env.current.ctx[ident] = makeVar(&val)
+	env.current.lock.Unlock()
 	return ret
 }
 
@@ -170,6 +173,50 @@ func fmap(env *Env, args []Node) Node {
 	return ret
 }
 
+func gtfloat(env *Env, args []Node) Node {
+	var d1, d2 float64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d1 = float64(args[0].(NumberNode).Int)
+	case token.FLOAT:
+		d1 = args[0].(NumberNode).Float
+	}
+	switch args[1].(NumberNode).NumberType {
+	case token.INT:
+		d2 = float64(args[1].(NumberNode).Int)
+	case token.FLOAT:
+		d2 = args[1].(NumberNode).Float
+	}
+	//log.Println(d1, d2, d1-d2)
+	if d1 > d2 {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
+}
+
+func gtint(env *Env, args []Node) Node {
+	var d1, d2 int64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d1 = args[0].(NumberNode).Int
+	case token.FLOAT:
+		d1 = round(args[0].(NumberNode).Float)
+	}
+	switch args[1].(NumberNode).NumberType {
+	case token.INT:
+		d2 = args[1].(NumberNode).Int
+	case token.FLOAT:
+		d2 = round(args[1].(NumberNode).Float)
+	}
+	//log.Println(d1, d2, d1-d2)
+	if d1 > d2 {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
+}
+
 func ltfloat(env *Env, args []Node) Node {
 	var d1, d2 float64
 	switch args[0].(NumberNode).NumberType {
@@ -183,6 +230,28 @@ func ltfloat(env *Env, args []Node) Node {
 		d2 = float64(args[1].(NumberNode).Int)
 	case token.FLOAT:
 		d2 = args[1].(NumberNode).Float
+	}
+	//log.Println(d1, d2, d1-d2)
+	if d1 < d2 {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
+}
+
+func ltint(env *Env, args []Node) Node {
+	var d1, d2 int64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d1 = args[0].(NumberNode).Int
+	case token.FLOAT:
+		d1 = round(args[0].(NumberNode).Float)
+	}
+	switch args[1].(NumberNode).NumberType {
+	case token.INT:
+		d2 = args[1].(NumberNode).Int
+	case token.FLOAT:
+		d2 = round(args[1].(NumberNode).Float)
 	}
 	//log.Println(d1, d2, d1-d2)
 	if d1 < d2 {

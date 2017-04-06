@@ -40,16 +40,15 @@ func (env *Env) new_current_local(vars ListNode) {
 
 func (env *Env) del_current_local() {
 	env.lock.Lock()
-	defer env.lock.Unlock()
-
 	env.current = env.current.next
+	env.lock.Unlock()
 }
 
 func (env *Env) run_stmt(args []Node) {
 	env.current.lock.RLock()
-	defer env.current.lock.RUnlock()
 
 	if env.current.cont && len(args) >= 1 {
+		env.current.lock.RUnlock()
 		if len(args) == 1 {
 			val := args[0].Value(env)
 			env.current.ret <- val
@@ -57,6 +56,8 @@ func (env *Env) run_stmt(args []Node) {
 			go env.run_stmt(args[1:])
 			args[0].Value(env)
 		}
+	} else {
+		env.current.lock.RUnlock()
 	}
 }
 
@@ -192,27 +193,37 @@ func (env *Env) run_map(f *Func, new_list []Node, list []Node) {
 
 func findFunc(word IdentNode, env *Env) *Func {
 	env.lock.RLock()
-	defer env.lock.RUnlock()
-
 	vars := env.current
+	env.lock.RUnlock()
+
 	var f Func
+	vars.lock.RLock()
 	for {
 		if ch, ok := vars.ctx[word]; ok {
+			vars.lock.RUnlock()
 			val := <-ch
 			ch <- val
 			f = val.(Func)
 			goto Apply
 		}
+
 		if vars.next == nil {
+			vars.lock.RUnlock()
 			break
 		}
-		vars = vars.next
+		nvars := vars.next
+		vars.lock.RUnlock()
+		vars = nvars
+		vars.lock.RLock()
 	}
+	env.globalVars.lock.RLock()
 	if ch, ok := env.globalVars.ctx[word]; ok {
+		env.globalVars.lock.RUnlock()
 		val := <-ch
 		ch <- val
 		f = val.(Func)
 	} else {
+		env.globalVars.lock.RUnlock()
 		fmt.Println(fmt.Sprintf("Function %s <unbound>", word.String()))
 		return nil
 	}

@@ -38,9 +38,24 @@ func TestLang(t *testing.T) {
 		Test{"{cond (T {print True} False True) (() {print False} True False) (T {print Else} True False Else)}", "True"},
 		Test{"{prog ((X T) (Y ())) {cond ({not .X} Second First) ({not .Y} First Second)}}", "Second"},
 		Test{"{prog ((X T) (Y ())) {cond ({not .X} First) (.Y Second) (() Third)}}", "()"},
+		Test{"{lt$float 9.0 9.0}", "()"},
+		Test{"{lt$float 5.0 9.0}", "T"},
+		Test{"{lt$float 9.0 5.0}", "()"},
+		Test{"{gt$float 9.0 9.0}", "()"},
+		Test{"{gt$float 5.0 9.0}", "()"},
+		Test{"{gt$float 9.0 5.0}", "T"},
 		Test{"{def if (lambda (c *t *e) {cond (.c {eval .t}) (T {eval .e})})}", "(lambda (c *t *e) {cond (.c {eval .t}) (T {eval .e})})"},
 		Test{"{if {eq 1 1} {div$int 1 1} {div$int 1 0}}", "1"},
 		Test{"{if {eq 1 0} {div$int 1 0} {div$int 1 1}}", "1"},
+		Test{"{def square$float (lambda (x) {prod$float .x .x})}", "(lambda (x) {prod$float .x .x})"},
+		Test{"{abs$float {sub$float {square$float 3.0} 9.0}}", "0.000000"},
+		Test{"{lt$float {abs$float {sub$float {square$float 3.0} 9.0}} 0.001}", "T"},
+		Test{"{if {lt$int 0 1} {div$int 1 1} {div$int 1 0}}", "1"},
+		Test{"{if {lt$float 0.001 0.002} {div$float 1 1} {div$float 1 0}}", "1.000000"},
+		Test{"{if {lt$int 1 0} {div$int 1 0} {div$int 1 1}}", "1"},
+		Test{"{if {lt$float 0.002 0.001} {div$float 1 0} {div$float 1 1}}", "1.000000"},
+		Test{"{def cloj (lambda (p) {def fn (lambda () .p)} {fn})}", "(lambda (p) {def fn (lambda () .p)} {fn })"},
+		Test{"{cloj Hello}", "Hello"},
 		//Test{"", ""},
 	}
 
@@ -48,7 +63,7 @@ func TestLang(t *testing.T) {
 	for i, test := range tests {
 		log.Println(i, test.text, "->", test.res)
 		if res := env.Eval(ParseFromString("<STRING>", test.text+"\n")...); res.String() != test.res {
-			t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", test.res, res))
+			t.Error(fmt.Sprintf("#%d: Expected result '%s', got string '%s'", i, test.res, res))
 		} else {
 			fmt.Printf("%v\n", res)
 		}

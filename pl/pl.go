@@ -44,8 +44,8 @@ type Vars struct {
 
 type Env struct {
 	globalVars *Vars
-	localVars  *Vars
-	current    *Vars
+	//localVars  *Vars
+	current *Vars
 
 	lock sync.RWMutex
 }
@@ -161,7 +161,7 @@ type Lambda struct {
 }
 
 func (fn *Lambda) apply(args []Node, env *Env) Node {
-	//log.Println(args)
+	//log.Println("Lambda: args", args)
 	var vars ListNode
 	switch fn.arg.Type() {
 	case NodeIdent:
@@ -230,7 +230,7 @@ func (fn *Lambda) apply(args []Node, env *Env) Node {
 func Begin() *Env {
 
 	global := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
-	local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
+	//local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
 	global.ctx[newIdentNode("abs$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: absfloat})
 	global.ctx[newIdentNode("and")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: and})
@@ -242,7 +242,10 @@ func Begin() *Env {
 	global.ctx[newIdentNode("eval")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: eval})
 	global.ctx[newIdentNode("exit")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: exit})
 	global.ctx[newIdentNode("fold")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fold})
+	global.ctx[newIdentNode("gt$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: gtfloat})
+	global.ctx[newIdentNode("gt$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: gtint})
 	global.ctx[newIdentNode("lt$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: ltfloat})
+	global.ctx[newIdentNode("lt$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: ltint})
 	global.ctx[newIdentNode("map")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fmap})
 	global.ctx[newIdentNode("neq")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: neq})
 	global.ctx[newIdentNode("not")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: not})
@@ -261,9 +264,9 @@ func Begin() *Env {
 
 	env := &Env{
 		globalVars: &global,
-		localVars:  &local,
-		current:    &local,
-		lock:       sync.RWMutex{},
+		//localVars:  &local,
+		current: &global,
+		lock:    sync.RWMutex{},
 	}
 
 	return env

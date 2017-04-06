@@ -38,20 +38,28 @@ func TestSICP(t *testing.T) {
 		Test{"{sum-of-squares 3 4}", "25"},
 		Test{"{def f (lambda (a) {sum-of-squares {sum$int .a 1} {prod$int .a 2}})}{f 5}", "136"},
 		Test{"{def if (lambda (c *t *e) {cond (.c {eval .t}) (T {eval .e})})}", "(lambda (c *t *e) {cond (.c {eval .t}) (T {eval .e})})"},
-		Test{"{lt$float 9.0 9.0}", "()"},
-		Test{"{lt$float 5.0 9.0}", "T"},
-		Test{"{lt$float 9.0 5.0}", "()"},
-		Test{"{def square$float (lambda (x) {prod$float .x .x})}", "(lambda (x) {prod$float .x .x})"},
-		Test{"{abs$float {sub$float {square$float 3.0} 9.0}}", "0.000000"},
-		Test{"{lt$float {abs$float {sub$float {square$float 3.0} 9.0}} 0.001}", "T"},
 		// Calc SQRT
+		Test{"{def square$float (lambda (x) {prod$float .x .x})}", "(lambda (x) {prod$float .x .x})"},
 		Test{"{def sqrt-iter (lambda (guess x) {if {good-enough .guess .x} .guess {sqrt-iter {improve-guess .guess .x} .x}})}", "(lambda (guess x) {if {good-enough .guess .x} .guess {sqrt-iter {improve-guess .guess .x} .x}})"},
 		Test{"{def improve-guess (lambda (guess x) {average .guess {div$float .x .guess}})}", "(lambda (guess x) {average .guess {div$float .x .guess}})"},
 		Test{"{def average (lambda (x y) {div$float {sum$float .x .y} 2.0})}", "(lambda (x y) {div$float {sum$float .x .y} 2.0})"},
 		Test{"{def good-enough (lambda (guess x) {lt$float {abs$float {sub$float {square$float .guess} .x}} 0.001})}", "(lambda (guess x) {lt$float {abs$float {sub$float {square$float .guess} .x}} 0.001})"},
 		Test{"{def sqrt$float (lambda (x) {sqrt-iter 1.0 .x})}", "(lambda (x) {sqrt-iter 1.0 .x})"},
 		Test{"{sqrt$float 9.0}", "3.000092"},
+		Test{"{sqrt$float 50.0}", "7.071068"},
+		//
 		Test{"{map sqrt$float {map square$float (1 2 3 4 5 6 7 8 9)}}", "(1.0 2.000000 3.000092 4.000001 5.000023 6.000000 7.000000 8.000002 9.000011)"},
+		// Calc factorial - linear recursive process
+		Test{"{def factor-lrp (lambda (n) {if {lt$int .n 2} 1 {prod$int .n {factor-lrp {sub$int .n 1}}}})}", "(lambda (n) {if {lt$int .n 2} 1 {prod$int .n {factor-lrp {sub$int .n 1}}}})"},
+		Test{"{factor-lrp 6}", "720"},
+		// Calc factorial - linear iterative process
+		Test{"{def factor-iter (lambda (product counter max-count) {if {gt$int .counter .max-count} .product {factor-iter {prod$int .counter .product} {sum$int .counter 1} .max-count}})}", "(lambda (product counter max-count) {if {gt$int .counter .max-count} .product {factor-iter {prod$int .counter .product} {sum$int .counter 1} .max-count}})"},
+		Test{"{def factor-lip (lambda (n) {factor-iter 1 1 .n})}", "(lambda (n) {factor-iter 1 1 .n})"},
+		Test{"{factor-lip 6}", "720"},
+		// Calc Fibonacci numbers iteratively
+		Test{"{def fib (lambda (n) {fib-iter 1 0 .n})}", "(lambda (n) {fib-iter 1 0 .n})"},
+		Test{"{def fib-iter (lambda (a b count) {if {lt$int .count 1} .b {fib-iter {sum$int .a .b} .a {sub$int .count 1}}})}", "(lambda (a b count) {if {lt$int .count 1} .b {fib-iter {sum$int .a .b} .a {sub$int .count 1}}})"},
+		Test{"{fib 8}", "21"},
 		//Test{"", ""},
 	}
 
@@ -59,7 +67,7 @@ func TestSICP(t *testing.T) {
 	for i, test := range tests {
 		log.Println(i, test.text, "->", test.res)
 		if res := env.Eval(ParseFromString("<STRING>", test.text+"\n")...); res.String() != test.res {
-			t.Error(fmt.Sprintf("Expected result '%s', got string '%s'", test.res, res))
+			t.Error(fmt.Sprintf("#%d: Expected result '%s', got string '%s'", i, test.res, res))
 		} else {
 			fmt.Printf("%v\n", res)
 		}

@@ -10,7 +10,7 @@ type Node interface {
 	Type() NodeType
 	// Position() Pos
 	String() string
-	Value(*Env) Node
+	Value(*Vars) Node
 	Copy() Node
 }
 
@@ -54,7 +54,7 @@ func (node IdentNode) String() string {
 	return node.Ident
 }
 
-func (node IdentNode) Value(env *Env) Node {
+func (node IdentNode) Value(v *Vars) Node {
 	return node
 }
 
@@ -72,7 +72,7 @@ func (node StringNode) String() string {
 	return node.Val
 }
 
-func (node StringNode) Value(env *Env) Node {
+func (node StringNode) Value(v *Vars) Node {
 	return node
 }
 
@@ -93,7 +93,7 @@ func (node NumberNode) String() string {
 	return node.Val
 }
 
-func (node NumberNode) Value(env *Env) Node {
+func (node NumberNode) Value(v *Vars) Node {
 	return node
 }
 
@@ -115,10 +115,10 @@ func (node VectorNode) String() string {
 	return fmt.Sprint(node.Nodes)
 }
 
-func (node VectorNode) Value(env *Env) Node {
+func (node VectorNode) Value(v *Vars) Node {
 	vect := VectorNode{NodeType: node.Type(), Nodes: make([]Node, len(node.Nodes))}
-	for i, v := range node.Nodes {
-		vect.Nodes[i] = v.Value(env)
+	for i, val := range node.Nodes {
+		vect.Nodes[i] = val.Value(v)
 	}
 	return vect
 }
@@ -142,10 +142,10 @@ func (node ListNode) String() string {
 	return "(" + s[1:len(s)-1] + ")"
 }
 
-func (node ListNode) Value(env *Env) Node {
+func (node ListNode) Value(v *Vars) Node {
 	vect := ListNode{NodeType: node.Type(), Nodes: make([]Node, len(node.Nodes))}
-	for i, v := range node.Nodes {
-		vect.Nodes[i] = v.Value(env)
+	for i, val := range node.Nodes {
+		vect.Nodes[i] = val.Value(v)
 	}
 	return vect
 }
@@ -170,13 +170,13 @@ func (node CallNode) String() string {
 	return fmt.Sprintf("{%s %s}", node.Callee, args[1:len(args)-1])
 }
 
-func (node CallNode) Value(env *Env) Node {
+func (node CallNode) Value(v *Vars) Node {
 	name := node.Callee
-	ident := name.Value(env).(IdentNode)
+	ident := name.Value(v).(IdentNode)
 
-	f := findFunc(ident, env)
+	f := findFunc(ident, v)
 	if f != nil {
-		return applyFunc(f, node.Args[:], env)
+		return applyFunc(f, node.Args[:], v)
 	} else {
 		return newIdentNode("<unbound>")
 	}

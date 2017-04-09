@@ -60,6 +60,12 @@ func TestSICP(t *testing.T) {
 		Test{"{def fib (lambda (n) {fib-iter 1 0 .n})}", "(lambda (n) {fib-iter 1 0 .n})"},
 		Test{"{def fib-iter (lambda (a b count) {if {lt$int .count 1} .b {fib-iter {sum$int .a .b} .a {sub$int .count 1}}})}", "(lambda (a b count) {if {lt$int .count 1} .b {fib-iter {sum$int .a .b} .a {sub$int .count 1}}})"},
 		Test{"{fib 8}", "21"},
+		// Example: Counting change
+		Test{"{def count-change (lambda (amount) {cc .amount 5})}", "(lambda (amount) {cc .amount 5})"},
+		Test{"{def cc (lambda (amount kinds-of-coins) {cond ({eq$int .amount 0} 1) ({or {lt$int .amount 0} {eq$int .kinds-of-coins 0}} 0) (else {sum$int {cc .amount {sub$int .kinds-of-coins 1}} {cc {sub$int .amount {first-denomination .kinds-of-coins}} .kinds-of-coins}})})}", "(lambda (amount kinds-of-coins) {cond ({eq$int .amount 0} 1) ({or {lt$int .amount 0} {eq$int .kinds-of-coins 0}} 0) (else {sum$int {cc .amount {sub$int .kinds-of-coins 1}} {cc {sub$int .amount {first-denomination .kinds-of-coins}} .kinds-of-coins}})})"},
+		Test{"{def first-denomination (lambda (kinds-of-coins) {cond ({eq$int .kinds-of-coins 1} 1) ({eq$int .kinds-of-coins 2} 5) ({eq$int .kinds-of-coins 3} 10) ({eq$int .kinds-of-coins 4} 25) ({eq$int .kinds-of-coins 5} 50)})}", "(lambda (kinds-of-coins) {cond ({eq$int .kinds-of-coins 1} 1) ({eq$int .kinds-of-coins 2} 5) ({eq$int .kinds-of-coins 3} 10) ({eq$int .kinds-of-coins 4} 25) ({eq$int .kinds-of-coins 5} 50)})"},
+		Test{"{count-change 1}", "1"},
+		Test{"{count-change 100}", "292"},
 		//Test{"", ""},
 	}
 

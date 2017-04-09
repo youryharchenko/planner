@@ -1,13 +1,12 @@
 package pl
 
 import (
-	"fmt"
 	"go/token"
 	"log"
 	"math"
 )
 
-func absfloat(env *Env, args []Node) Node {
+func absfloat(v *Vars, args []Node) Node {
 	var d float64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -18,30 +17,30 @@ func absfloat(env *Env, args []Node) Node {
 	return newFloat(d)
 }
 
-func and(env *Env, args []Node) Node {
-	env.new_current_local(newListNode([]Node{}))
+func and(v *Vars, args []Node) Node {
+	nv := v.new_current_local("and", newListNode([]Node{}))
 
-	go env.run_and(args[:])
+	go nv.run_and(args[:])
 
 	//ret := <-env.current.ret
-	ret := env.wait_return()
+	ret := nv.wait_return()
 
-	env.del_current_local()
+	nv.del_current_local()
 	return ret
 }
 
-func cond(env *Env, args []Node) Node {
-	env.new_current_local(newListNode([]Node{}))
+func cond(v *Vars, args []Node) Node {
+	nv := v.new_current_local("cond", newListNode([]Node{}))
 
-	go env.run_cond(args[:])
+	go nv.run_cond(args[:])
 
-	ret := env.wait_return()
+	ret := nv.wait_return()
 
-	env.del_current_local()
+	nv.del_current_local()
 	return ret
 }
 
-func def(env *Env, args []Node) Node {
+func def(v *Vars, args []Node) Node {
 	ident := args[0].(IdentNode)
 	val := args[1]
 	var ret Node
@@ -52,18 +51,18 @@ func def(env *Env, args []Node) Node {
 			id := list.Nodes[0].(IdentNode)
 			switch id.Ident {
 			case "lambda":
-				val = Func{mode: UserDef, ud: &Lambda{env: env, arg: list.Nodes[1], body: list.Nodes[2:]}}
+				val = Func{name: ident.String(), mode: UserDef, ud: &Lambda{vars: v, arg: list.Nodes[1], body: list.Nodes[2:]}}
 				ret = list
 			default:
-				val = args[1].Value(env)
+				val = args[1].Value(v)
 				ret = val
 			}
 		} else {
-			val = args[1].Value(env)
+			val = args[1].Value(v)
 			ret = val
 		}
 	} else {
-		val = args[1].Value(env)
+		val = args[1].Value(v)
 		ret = val
 	}
 	/*
@@ -71,13 +70,13 @@ func def(env *Env, args []Node) Node {
 		env.globalVars.ctx[ident] = makeVar(&val)
 		env.globalVars.lock.Unlock()
 	*/
-	env.current.lock.Lock()
-	env.current.ctx[ident] = makeVar(&val)
-	env.current.lock.Unlock()
+	v.lock.Lock()
+	v.ctx[ident] = makeVar(&val)
+	v.lock.Unlock()
 	return ret
 }
 
-func divfloat(env *Env, args []Node) Node {
+func divfloat(v *Vars, args []Node) Node {
 	var d float64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -97,7 +96,7 @@ func divfloat(env *Env, args []Node) Node {
 	return newFloat(d)
 }
 
-func divint(env *Env, args []Node) Node {
+func divint(v *Vars, args []Node) Node {
 	var d int64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -117,7 +116,7 @@ func divint(env *Env, args []Node) Node {
 	return newInt(d)
 }
 
-func eq(env *Env, args []Node) Node {
+func eq(v *Vars, args []Node) Node {
 	if args[0].String() == args[1].String() {
 		return newIdentNode("T")
 	} else {
@@ -125,55 +124,77 @@ func eq(env *Env, args []Node) Node {
 	}
 }
 
-func eval(env *Env, args []Node) Node {
-	//log.Println(args[0])
-	return args[0].Value(env)
+func eqint(v *Vars, args []Node) Node {
+	var d1, d2 int64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		d1 = args[0].(NumberNode).Int
+	case token.FLOAT:
+		d1 = round(args[0].(NumberNode).Float)
+	}
+	switch args[1].(NumberNode).NumberType {
+	case token.INT:
+		d2 = args[1].(NumberNode).Int
+	case token.FLOAT:
+		d2 = round(args[1].(NumberNode).Float)
+	}
+	//log.Println(d1, d2, d1-d2)
+	if d1 == d2 {
+		return newIdentNode("T")
+	} else {
+		return newListNode([]Node{})
+	}
 }
 
-func exit(env *Env, args []Node) Node {
-	env.current.lock.Lock()
-	env.current.cont = false
-	env.current.lock.Unlock()
+func eval(v *Vars, args []Node) Node {
+	//log.Println(args[0])
+	return args[0].Value(v)
+}
 
-	env.current.exit <- args[0]
+func exit(v *Vars, args []Node) Node {
+	//env.current.lock.Lock()
+	//env.current.cont = false
+	//env.current.lock.Unlock()
+
+	v.exit <- args[0]
 	return args[0]
 }
 
-func fold(env *Env, args []Node) Node {
+func fold(v *Vars, args []Node) Node {
 	word := args[0].(IdentNode)
 	init := args[1]
 	list := args[2].(ListNode).Nodes
-	f := findFunc(word, env)
+	f := findFunc(word, v)
 
-	env.new_current_local(newListNode([]Node{}))
+	nv := v.new_current_local("fold", newListNode([]Node{}))
 
-	go env.run_fold(f, init, list[:])
+	go nv.run_fold(f, init, list[:])
 
 	//ret := <-env.current.ret
-	ret := env.wait_return()
+	ret := nv.wait_return()
 
-	env.del_current_local()
+	nv.del_current_local()
 	return ret
 }
 
-func fmap(env *Env, args []Node) Node {
+func fmap(v *Vars, args []Node) Node {
 	word := args[0].(IdentNode)
 	list := args[1].(ListNode).Nodes
-	f := findFunc(word, env)
+	f := findFunc(word, v)
 
 	new_list := []Node{}
-	env.new_current_local(newListNode(new_list))
+	nv := v.new_current_local("map", newListNode(new_list))
 
-	go env.run_map(f, new_list[:], list[:])
+	go nv.run_map(f, new_list[:], list[:])
 
 	//ret := <-env.current.ret
-	ret := env.wait_return()
+	ret := nv.wait_return()
 
-	env.del_current_local()
+	nv.del_current_local()
 	return ret
 }
 
-func gtfloat(env *Env, args []Node) Node {
+func gtfloat(v *Vars, args []Node) Node {
 	var d1, d2 float64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -195,7 +216,7 @@ func gtfloat(env *Env, args []Node) Node {
 	}
 }
 
-func gtint(env *Env, args []Node) Node {
+func gtint(v *Vars, args []Node) Node {
 	var d1, d2 int64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -217,7 +238,7 @@ func gtint(env *Env, args []Node) Node {
 	}
 }
 
-func ltfloat(env *Env, args []Node) Node {
+func ltfloat(v *Vars, args []Node) Node {
 	var d1, d2 float64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -239,7 +260,7 @@ func ltfloat(env *Env, args []Node) Node {
 	}
 }
 
-func ltint(env *Env, args []Node) Node {
+func ltint(v *Vars, args []Node) Node {
 	var d1, d2 int64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -261,7 +282,7 @@ func ltint(env *Env, args []Node) Node {
 	}
 }
 
-func neq(env *Env, args []Node) Node {
+func neq(v *Vars, args []Node) Node {
 	if args[0].String() != args[1].String() {
 		return newIdentNode("T")
 	} else {
@@ -269,7 +290,7 @@ func neq(env *Env, args []Node) Node {
 	}
 }
 
-func not(env *Env, args []Node) Node {
+func not(v *Vars, args []Node) Node {
 	if args[0].String() == "()" {
 		return newIdentNode("T")
 	} else {
@@ -277,83 +298,66 @@ func not(env *Env, args []Node) Node {
 	}
 }
 
-func or(env *Env, args []Node) Node {
-	env.new_current_local(newListNode([]Node{}))
+func or(v *Vars, args []Node) Node {
+	nv := v.new_current_local("or", newListNode([]Node{}))
 
-	go env.run_or(args[:])
+	go nv.run_or(args[:])
 
 	//ret := <-env.current.ret
-	ret := env.wait_return()
+	ret := nv.wait_return()
 
-	env.del_current_local()
+	nv.del_current_local()
 	return ret
 }
 
-func print(env *Env, args []Node) Node {
+func print(v *Vars, args []Node) Node {
 	for _, arg := range args {
 		log.Println(arg.String())
 	}
 	return args[len(args)-1]
 }
 
-func prog(env *Env, args []Node) Node {
+func prog(v *Vars, args []Node) Node {
 	vars := args[0].(ListNode)
-	env.new_current_local(vars)
+	nv := v.new_current_local("prog", vars)
 
-	go env.run_stmt(args[1:])
-	/*
-			var ret Node
-		Loop:
-			for {
-				select {
-				case ret = <-env.current.ret:
-					log.Println("prog: select ret", ret)
-					break Loop
-				case ret = <-env.current.exit:
-					log.Println("prog: select exit", ret)
-					break Loop
-				case <-time.After(time.Second * 5):
-					ret = newIdentNode("<timeout>")
-					log.Println("prog: select timeout")
-					break Loop
-				}
+	go nv.run_stmt(args[1:])
 
-			}
-	*/
-	ret := env.wait_return()
-	env.del_current_local()
+	ret := nv.wait_return()
+	nv.del_current_local()
 	return ret
 }
 
-func quote(env *Env, args []Node) Node {
+func quote(v *Vars, args []Node) Node {
 	return args[0]
 }
 
-func set(env *Env, args []Node) Node {
+func set(v *Vars, args []Node) Node {
 	word := args[0].(IdentNode)
 
-	env.lock.RLock()
-	vars := env.current
-	env.lock.RUnlock()
+	//env.lock.RLock()
+	vars := v
+	//env.lock.RUnlock()
 
 	for {
-		vars.lock.RLock()
+		//vars.lock.RLock()
 		if _, ok := vars.ctx[word]; ok {
 			vars.ctx[word] <- args[1]
 			return args[1]
 		}
 		if vars.next == nil {
-			fmt.Println(fmt.Sprintf("Variable %s <unbound>", word.String()))
+			//fmt.Println(fmt.Sprintf("Variable %s <unbound>", word.String()))
+			log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
 			return newIdentNode("<unbound>")
 		}
 		nvars := vars.next
-		vars.lock.Unlock()
+		//vars.lock.Unlock()
 		vars = nvars
 	}
 	//return args[1]
 }
 
-func prodfloat(env *Env, args []Node) Node {
+func prodfloat(v *Vars, args []Node) Node {
 	p := float64(1)
 	for _, arg := range args {
 		switch arg.(NumberNode).NumberType {
@@ -366,7 +370,7 @@ func prodfloat(env *Env, args []Node) Node {
 	return newFloat(p)
 }
 
-func prodint(env *Env, args []Node) Node {
+func prodint(v *Vars, args []Node) Node {
 	p := int64(1)
 	for _, arg := range args {
 		switch arg.(NumberNode).NumberType {
@@ -379,7 +383,7 @@ func prodint(env *Env, args []Node) Node {
 	return newInt(p)
 }
 
-func subfloat(env *Env, args []Node) Node {
+func subfloat(v *Vars, args []Node) Node {
 	var s float64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -399,7 +403,7 @@ func subfloat(env *Env, args []Node) Node {
 	return newFloat(s)
 }
 
-func subint(env *Env, args []Node) Node {
+func subint(v *Vars, args []Node) Node {
 	var s int64
 	switch args[0].(NumberNode).NumberType {
 	case token.INT:
@@ -419,7 +423,7 @@ func subint(env *Env, args []Node) Node {
 	return newInt(s)
 }
 
-func sumfloat(env *Env, args []Node) Node {
+func sumfloat(v *Vars, args []Node) Node {
 	s := float64(0)
 	for _, arg := range args {
 		switch arg.(NumberNode).NumberType {
@@ -432,7 +436,7 @@ func sumfloat(env *Env, args []Node) Node {
 	return newFloat(s)
 }
 
-func sumint(env *Env, args []Node) Node {
+func sumint(v *Vars, args []Node) Node {
 	s := int64(0)
 	for _, arg := range args {
 		switch arg.(NumberNode).NumberType {
@@ -445,7 +449,7 @@ func sumint(env *Env, args []Node) Node {
 	return newInt(s)
 }
 
-func type_(env *Env, args []Node) Node {
+func type_(v *Vars, args []Node) Node {
 	var t string
 	switch args[0].Type() {
 	case NodeCall:

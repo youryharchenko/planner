@@ -1,206 +1,214 @@
 package pl
 
 import (
-	"fmt"
+	"log"
 	"sync"
 	"time"
 )
 
-func (env *Env) new_current_local(vars ListNode) {
-	env.lock.Lock()
+func (v *Vars) new_current_local(name string, vars ListNode) *Vars {
+	//env.lock.Lock()
 
-	env.current = &Vars{
+	nv := &Vars{
+		name: name,
+		deep: v.deep + 1,
 		ctx:  map[IdentNode]chan Node{},
-		next: env.current,
+		next: v,
 		ret:  make(chan Node),
 		exit: make(chan Node),
-		cont: true,
+		//cont: true,
 		lock: sync.RWMutex{},
 	}
 
-	env.lock.Unlock()
+	//env.lock.Unlock()
 
 	for _, elm := range vars.Nodes {
 		switch elm.(type) {
 		case IdentNode:
-			env.current.lock.Lock()
-			env.current.ctx[elm.(IdentNode)] = makeVar(nil) //make(chan Node, 1)
-			env.current.lock.Unlock()
+			//env.current.lock.Lock()
+			nv.ctx[elm.(IdentNode)] = makeVar(nil) //make(chan Node, 1)
+			//env.current.lock.Unlock()
 		case ListNode:
 			if llist := elm.(ListNode); len(llist.Nodes) == 2 {
 				word := llist.Nodes[0].(IdentNode)
 
-				env.current.lock.Lock()
-				env.current.ctx[word] = makeVar(&llist.Nodes[1])
-				env.current.lock.Unlock()
+				//env.current.lock.Lock()
+				nv.ctx[word] = makeVar(&llist.Nodes[1])
+				//env.current.lock.Unlock()
 			}
 		}
 	}
+	return nv
 }
 
-func (env *Env) del_current_local() {
-	env.lock.Lock()
-	env.current = env.current.next
-	env.lock.Unlock()
+func (v *Vars) del_current_local() {
+	//env.lock.Lock()
+	//env.current = env.current.next
+	//env.lock.Unlock()
 }
 
-func (env *Env) run_stmt(args []Node) {
-	env.current.lock.RLock()
+func (v *Vars) run_stmt(args []Node) {
+	//env.current.lock.RLock()
 
-	if env.current.cont && len(args) >= 1 {
-		env.current.lock.RUnlock()
+	//if env.current.cont && len(args) >= 1 {
+	if len(args) >= 1 {
+		//env.current.lock.RUnlock()
 		if len(args) == 1 {
-			val := args[0].Value(env)
-			env.current.ret <- val
+			val := args[0].Value(v)
+			v.ret <- val
 		} else {
-			go env.run_stmt(args[1:])
-			args[0].Value(env)
+			go v.run_stmt(args[1:])
+			args[0].Value(v)
 		}
 	} else {
-		env.current.lock.RUnlock()
+		//env.current.lock.RUnlock()
 	}
 }
 
-func (env *Env) wait_return() Node {
+func (v *Vars) wait_return() Node {
 	var ret Node
 Loop:
 	for {
 		select {
-		case ret = <-env.current.ret:
+		case ret = <-v.ret:
 			//log.Println("prog: select ret", ret)
 			break Loop
-		case ret = <-env.current.exit:
+		case ret = <-v.exit:
 			//log.Println("prog: select exit", ret)
 			break Loop
-		case <-time.After(time.Second * 5):
+		case <-time.After(time.Second * 20):
 			ret = newIdentNode("<timeout>")
-			//log.Println("prog: select timeout")
+			log.Panicf("wait_return: select timeout, deep: %d, ctx: %s", v.deep, v.name)
 			break Loop
 		}
 	}
 	return ret
 }
 
-func (env *Env) run_cond(args []Node) {
+func (v *Vars) run_cond(args []Node) {
 	list := args[0].(ListNode)
 
-	if val := list.Nodes[0].Value(env); val.String() == "()" && len(args) > 1 {
-		env.current.lock.RLock()
-		if env.current.cont {
-			env.current.lock.RUnlock()
-			go env.run_cond(args[1:])
-		} else {
-			env.current.lock.RUnlock()
-		}
+	if val := list.Nodes[0].Value(v); val.String() == "()" && len(args) > 1 {
+		//env.current.lock.RLock()
+		//if env.current.cont {
+		//env.current.lock.RUnlock()
+		go v.run_cond(args[1:])
+		//} else {
+		//env.current.lock.RUnlock()
+		//}
 	} else {
 		var ret Node
 		if val.String() == "()" {
 			ret = newListNode([]Node{})
 		} else {
-			env.current.lock.Lock()
-			env.current.cont = false
-			env.current.lock.Unlock()
+			//env.current.lock.Lock()
+			//env.current.cont = false
+			//env.current.lock.Unlock()
 
-			env.new_current_local(newListNode([]Node{}))
+			nv := v.new_current_local("cond clause", newListNode([]Node{}))
 
-			go env.run_stmt(list.Nodes[1:])
+			go nv.run_stmt(list.Nodes[1:])
 
-			ret = env.wait_return()
+			ret = nv.wait_return()
 
-			env.del_current_local()
+			//env.del_current_local()
 		}
 
-		env.current.ret <- ret
+		v.ret <- ret
 
 	}
 }
 
-func (env *Env) run_or(args []Node) {
+func (v *Vars) run_or(args []Node) {
 
-	if val := args[0].Value(env); val.String() == "()" {
-		env.current.lock.RLock()
-		if env.current.cont && len(args) >= 1 {
-			env.current.lock.RUnlock()
+	if val := args[0].Value(v); val.String() == "()" {
+		//env.current.lock.RLock()
+		//if env.current.cont && len(args) >= 1 {
+		if len(args) >= 1 {
+			//env.current.lock.RUnlock()
 			if len(args) == 1 {
-				env.current.ret <- val
+				v.ret <- val
 			} else {
-				go env.run_or(args[1:])
+				go v.run_or(args[1:])
 			}
 		} else {
-			env.current.lock.RUnlock()
+			//env.current.lock.RUnlock()
 		}
 	} else {
 
-		env.current.lock.Lock()
-		env.current.cont = false
-		env.current.lock.Unlock()
+		//env.current.lock.Lock()
+		//env.current.cont = false
+		//env.current.lock.Unlock()
 
-		env.current.ret <- val
+		v.ret <- val
 	}
 }
 
-func (env *Env) run_and(args []Node) {
+func (v *Vars) run_and(args []Node) {
 
-	if val := args[0].Value(env); val.String() != "()" {
-		env.current.lock.RLock()
-		if env.current.cont && len(args) >= 1 {
-			env.current.lock.RUnlock()
+	if val := args[0].Value(v); val.String() != "()" {
+		//env.current.lock.RLock()
+		//if env.current.cont && len(args) >= 1 {
+		if len(args) >= 1 {
+			//env.current.lock.RUnlock()
 			if len(args) == 1 {
-				env.current.ret <- val
+				v.ret <- val
 			} else {
-				go env.run_and(args[1:])
+				go v.run_and(args[1:])
 			}
 		} else {
-			env.current.lock.RUnlock()
+			//env.current.lock.RUnlock()
 		}
 	} else {
 
-		env.current.lock.Lock()
-		env.current.cont = false
-		env.current.lock.Unlock()
+		//env.current.lock.Lock()
+		//env.current.cont = false
+		//env.current.lock.Unlock()
 
-		env.current.ret <- val
+		v.ret <- val
 	}
 }
 
-func (env *Env) run_fold(f *Func, val Node, list []Node) {
-	env.current.lock.RLock()
-	defer env.current.lock.RUnlock()
+func (v *Vars) run_fold(f *Func, val Node, list []Node) {
+	//env.current.lock.RLock()
+	//defer env.current.lock.RUnlock()
 
-	if env.current.cont && len(list) >= 1 {
-		newVal := applyFunc(f, []Node{val, list[0]}, env)
+	//if env.current.cont && len(list) >= 1 {
+	if len(list) >= 1 {
+		newVal := applyFunc(f, []Node{val, list[0]}, v)
 		if len(list) == 1 {
-			env.current.ret <- newVal
+			v.ret <- newVal
 		} else {
-			go env.run_fold(f, newVal, list[1:])
+			go v.run_fold(f, newVal, list[1:])
 		}
 	}
 }
 
-func (env *Env) run_map(f *Func, new_list []Node, list []Node) {
-	env.current.lock.RLock()
-	defer env.current.lock.RUnlock()
+func (v *Vars) run_map(f *Func, new_list []Node, list []Node) {
+	//env.current.lock.RLock()
+	//defer env.current.lock.RUnlock()
 
-	if env.current.cont && len(list) >= 1 {
-		new_list = append(new_list, applyFunc(f, []Node{list[0]}, env))
+	//if env.current.cont && len(list) >= 1 {
+	if len(list) >= 1 {
+		new_list = append(new_list, applyFunc(f, []Node{list[0]}, v))
 		if len(list) == 1 {
-			env.current.ret <- newListNode(new_list)
+			v.ret <- newListNode(new_list)
 		} else {
-			go env.run_map(f, new_list, list[1:])
+			go v.run_map(f, new_list, list[1:])
 		}
 	}
 }
 
-func findFunc(word IdentNode, env *Env) *Func {
-	env.lock.RLock()
-	vars := env.current
-	env.lock.RUnlock()
+func findFunc(word IdentNode, v *Vars) *Func {
+	//env.lock.RLock()
+	vars := v
+	//env.lock.RUnlock()
 
 	var f Func
-	vars.lock.RLock()
+	//vars.lock.RLock()
 	for {
 		if ch, ok := vars.ctx[word]; ok {
-			vars.lock.RUnlock()
+			//vars.lock.RUnlock()
 			val := <-ch
 			ch <- val
 			f = val.(Func)
@@ -208,30 +216,34 @@ func findFunc(word IdentNode, env *Env) *Func {
 		}
 
 		if vars.next == nil {
-			vars.lock.RUnlock()
+			//vars.lock.RUnlock()
 			break
 		}
 		nvars := vars.next
-		vars.lock.RUnlock()
+		//vars.lock.RUnlock()
 		vars = nvars
-		vars.lock.RLock()
+		//vars.lock.RLock()
 	}
-	env.globalVars.lock.RLock()
-	if ch, ok := env.globalVars.ctx[word]; ok {
-		env.globalVars.lock.RUnlock()
-		val := <-ch
-		ch <- val
-		f = val.(Func)
-	} else {
-		env.globalVars.lock.RUnlock()
-		fmt.Println(fmt.Sprintf("Function %s <unbound>", word.String()))
-		return nil
-	}
+	//env.globalVars.lock.RLock()
+	/*
+		if ch, ok := env.globalVars.ctx[word]; ok {
+			//env.globalVars.lock.RUnlock()
+			val := <-ch
+			ch <- val
+			f = val.(Func)
+		} else {
+			//env.globalVars.lock.RUnlock()
+			//fmt.Println(fmt.Sprintf("Function %s <unbound>", word.String()))
+			log.Panicf("function %s <unbound>", word.String())
+			return nil
+		}
+	*/
 Apply:
 	return &f
 }
 
-func applyFunc(f *Func, args []Node, env *Env) Node {
+func applyFunc(f *Func, args []Node, v *Vars) Node {
+	//log.Println(f.name, args, env.current.deep, env.current.name)
 	switch f.mode {
 	case BuiltIn:
 		var list []Node
@@ -240,12 +252,13 @@ func applyFunc(f *Func, args []Node, env *Env) Node {
 		} else {
 			list = []Node{}
 			for _, elm := range args {
-				list = append(list, elm.Value(env))
+				list = append(list, elm.Value(v))
 			}
 		}
-		return f.bi(env, list)
+		//log.Println(f.name, list, v.deep, v.name)
+		return f.bi(v, list)
 	case UserDef:
-		return f.ud.apply(args, env)
+		return f.ud.apply(f.name, args, v)
 	}
 	return newIdentNode("<unexpected>")
 }

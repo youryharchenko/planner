@@ -33,19 +33,44 @@ const (
 )
 
 type Vars struct {
+	name string
+	deep int64
 	ctx  map[IdentNode]chan Node
 	ret  chan Node
 	exit chan Node
-	cont bool
+	//cont bool
 	next *Vars
 
 	lock sync.RWMutex
 }
 
+func (v *Vars) findGlobal() *Vars {
+	cv := v
+	for {
+		if cv.next == nil {
+			return cv
+		} else {
+			cv = cv.next
+		}
+	}
+}
+
+func (v *Vars) printTrace() {
+	cv := v
+	for {
+		log.Printf("Trace>> deep: %d, ctx: %s(%v)", cv.deep, cv.name, cv.ctx)
+		if cv.next == nil {
+			return
+		} else {
+			cv = cv.next
+		}
+	}
+}
+
 type Env struct {
 	globalVars *Vars
 	//localVars  *Vars
-	current *Vars
+	//current *Vars
 
 	lock sync.RWMutex
 }
@@ -64,15 +89,16 @@ func newRefNode(val string) RefNode {
 	case ':':
 		return RefNode{NodeType: NodeRef, val: val, mode: GlobalValue, ref: newIdentNode(val[1:])}
 	}
+	log.Panicln(":<unexpected reference char>")
 	return newRefNode(":<unexpected reference char>")
 }
 
-func (expr RefNode) Value(env *Env) Node {
+func (expr RefNode) Value(v *Vars) Node {
 	switch expr.mode {
 	case LocalValue:
-		vars := env.current
+		vars := v
 		for {
-			vars.lock.RLock()
+			//vars.lock.RLock()
 			if ch, ok := vars.ctx[expr.ref]; ok {
 				if ch != nil {
 					var val Node
@@ -82,27 +108,35 @@ func (expr RefNode) Value(env *Env) Node {
 						ch <- val
 						return val
 					case <-time.After(time.Second * 5):
-						log.Println("Ref Value timeout", expr.ref)
-						return newIdentNode("<timeout>")
+						//log.Println("Ref Value timeout", expr.ref)
+						//return newIdentNode("<timeout>")
+						//log.Panicln("ref value timeout", expr.ref)
+						log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 					}
 				} else {
-					fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
-					return newIdentNode("<unassigned>")
+					//fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
+					//return newIdentNode("<unassigned>")
+					//log.Panicf("Variable %s <unassigned>", expr.ref.String())
+					log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 				}
 			}
 
 			if vars.next == nil {
-				fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
-				return newIdentNode("<unbound>")
+				//fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
+				//return newIdentNode("<unbound>")
+				//log.Panicf("Variable %s <unbound>", expr.ref.String())
+				v.printTrace()
+				log.Panicf("variable %s <unbound>, deep: %d, ctx: %s(%v)", expr.ref.String(), v.deep, v.name, v.ctx)
 			}
 			nvars := vars.next
-			vars.lock.RUnlock()
+			//vars.lock.RUnlock()
 			vars = nvars
 		}
 	case GlobalValue:
-		env.globalVars.lock.RLock()
-		defer env.globalVars.lock.RUnlock()
-		if ch, ok := env.globalVars.ctx[expr.ref]; ok {
+		globalVars := v.findGlobal()
+		globalVars.lock.RLock()
+		defer globalVars.lock.RUnlock()
+		if ch, ok := globalVars.ctx[expr.ref]; ok {
 			if ch != nil {
 				var val Node
 				select {
@@ -111,18 +145,26 @@ func (expr RefNode) Value(env *Env) Node {
 					ch <- val
 					return val
 				case <-time.After(time.Second * 5):
-					log.Println("Ref Value timeout", expr.ref)
-					return newIdentNode("<timeout>")
+					//log.Println("Ref Value timeout", expr.ref)
+					//return newIdentNode("<timeout>")
+					//log.Panicln("Ref Value timeout", expr.ref)
+					log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 				}
 			} else {
-				fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
-				return newIdentNode("<unassigned>")
+				//fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
+				//return newIdentNode("<unassigned>")
+				//log.Panicf("Variable %s <unassigned>", expr.ref.String())
+				log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 			}
 		} else {
-			fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
-			return newIdentNode("<unbound>")
+			//fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
+			//return newIdentNode("<unbound>")
+			//log.Panicf("Variable %s <unbound>", expr.ref.String())
+			log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 		}
 	}
+	//return newIdentNode("<unexpected>")
+	log.Panicln("<unexpected>")
 	return newIdentNode("<unexpected>")
 }
 
@@ -136,18 +178,19 @@ func (expr RefNode) Copy() Node {
 
 type Func struct {
 	NodeType
+	name  string
 	mode  FuncType
 	class FuncClass
-	bi    func(*Env, []Node) Node
+	bi    func(*Vars, []Node) Node
 	ud    *Lambda
 }
 
-func (expr Func) Value(env *Env) Node {
+func (expr Func) Value(v *Vars) Node {
 	return expr
 }
 
 func (expr Func) String() string {
-	return fmt.Sprintf("%v, %v", expr.mode, expr.class)
+	return fmt.Sprintf("%v, %v, %v", expr.name, expr.mode, expr.class)
 }
 
 func (expr Func) Copy() Node {
@@ -155,14 +198,15 @@ func (expr Func) Copy() Node {
 }
 
 type Lambda struct {
-	env  *Env
+	vars *Vars
 	arg  Node
 	body []Node
 }
 
-func (fn *Lambda) apply(args []Node, env *Env) Node {
+func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 	//log.Println("Lambda: args", args)
 	var vars ListNode
+
 	switch fn.arg.Type() {
 	case NodeIdent:
 		var ident IdentNode
@@ -176,12 +220,11 @@ func (fn *Lambda) apply(args []Node, env *Env) Node {
 			ident = newIdentNode(arg.Ident)
 			list := make([]Node, len(args))
 			for i, a := range args {
-				list[i] = a.Value(env)
+				list[i] = a.Value(v)
 			}
 			param = newListNode(list)
 		}
 		vars = newListNode([]Node{newListNode([]Node{ident, param})})
-
 	case NodeList:
 		lst := fn.arg.(ListNode)
 		list := make([]Node, len(lst.Nodes))
@@ -192,81 +235,97 @@ func (fn *Lambda) apply(args []Node, env *Env) Node {
 				ident = newIdentNode(ident.Ident[1:])
 				param = args[i]
 			} else {
-				param = args[i].Value(env)
+				param = args[i].Value(v)
 			}
 			list[i] = newListNode([]Node{ident, param})
 		}
 		vars = newListNode(list)
+
 	}
+	//log.Println(name, vars, v.deep, v.name)
+	//nv := fn.vars.new_current_local(name, vars)
+	nv := v.new_current_local(name, vars)
 
-	fn.env.new_current_local(vars)
+	go nv.run_stmt(fn.body)
 
-	go fn.env.run_stmt(fn.body)
-	/*
-			var ret Node
-		Loop:
-			for {
-				select {
-				case ret = <-env.current.ret:
-					log.Println("lambda: select ret", ret)
-					break Loop
-				case ret = <-env.current.exit:
-					log.Println("lambda: select exit", ret)
-					break Loop
-				case <-time.After(time.Second * 5):
-					ret = newIdentNode("<timeout>")
-					log.Println("lambda: select timeout")
-					break Loop
-				}
+	ret := nv.wait_return()
 
-			}
-	*/
-	ret := env.wait_return()
-	fn.env.del_current_local()
+	nv.del_current_local()
 	return ret
 
 }
 
 func Begin() *Env {
-
-	global := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
+	var name string
+	global := Vars{name: "global", deep: 0, ctx: map[IdentNode]chan Node{}, next: nil}
 	//local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
-	global.ctx[newIdentNode("abs$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: absfloat})
-	global.ctx[newIdentNode("and")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: and})
-	global.ctx[newIdentNode("cond")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: cond})
-	global.ctx[newIdentNode("def")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: def})
-	global.ctx[newIdentNode("div$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divfloat})
-	global.ctx[newIdentNode("div$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: divint})
-	global.ctx[newIdentNode("eq")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: eq})
-	global.ctx[newIdentNode("eval")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: eval})
-	global.ctx[newIdentNode("exit")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: exit})
-	global.ctx[newIdentNode("fold")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fold})
-	global.ctx[newIdentNode("gt$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: gtfloat})
-	global.ctx[newIdentNode("gt$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: gtint})
-	global.ctx[newIdentNode("lt$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: ltfloat})
-	global.ctx[newIdentNode("lt$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: ltint})
-	global.ctx[newIdentNode("map")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: fmap})
-	global.ctx[newIdentNode("neq")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: neq})
-	global.ctx[newIdentNode("not")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: not})
-	global.ctx[newIdentNode("or")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: or})
-	global.ctx[newIdentNode("quote")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: quote})
-	global.ctx[newIdentNode("print")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: print})
-	global.ctx[newIdentNode("prod$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: prodfloat})
-	global.ctx[newIdentNode("prod$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: prodint})
-	global.ctx[newIdentNode("prog")] = makeFunc(Func{mode: BuiltIn, class: FSubr, bi: prog})
-	global.ctx[newIdentNode("set")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: set})
-	global.ctx[newIdentNode("sub$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: subfloat})
-	global.ctx[newIdentNode("sub$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: subint})
-	global.ctx[newIdentNode("sum$float")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: sumfloat})
-	global.ctx[newIdentNode("sum$int")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: sumint})
-	global.ctx[newIdentNode("type")] = makeFunc(Func{mode: BuiltIn, class: Subr, bi: type_})
+	name = "abs$float"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: absfloat})
+	name = "and"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: FSubr, bi: and})
+	name = "cond"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: FSubr, bi: cond})
+	name = "def"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: FSubr, bi: def})
+	name = "div$float"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: divfloat})
+	name = "div$int"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: divint})
+	name = "eq"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: eq})
+	name = "eq$int"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: eqint})
+	name = "eval"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: eval})
+	name = "exit"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: exit})
+	name = "fold"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: fold})
+	name = "gt$float"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: gtfloat})
+	name = "gt$int"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: gtint})
+	name = "lt$float"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: ltfloat})
+	name = "lt$int"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: ltint})
+	name = "map"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: fmap})
+	name = "neq"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: neq})
+	name = "not"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: not})
+	name = "or"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: FSubr, bi: or})
+	name = "quote"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: FSubr, bi: quote})
+	name = "print"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: print})
+	name = "prod$float"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: prodfloat})
+	name = "prod$int"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: prodint})
+	name = "prog"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: FSubr, bi: prog})
+	name = "set"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: set})
+	name = "sub$float"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: subfloat})
+	name = "sub$int"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: subint})
+	name = "sum$float"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: sumfloat})
+	name = "sum$int"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: sumint})
+	name = "type"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{name: name, mode: BuiltIn, class: Subr, bi: type_})
 
 	env := &Env{
 		globalVars: &global,
 		//localVars:  &local,
-		current: &global,
-		lock:    sync.RWMutex{},
+		//current: &global,
+		lock: sync.RWMutex{},
 	}
 
 	return env
@@ -275,7 +334,7 @@ func Begin() *Env {
 func (env *Env) Eval(args ...Node) Node {
 	var ret Node
 	for _, expr := range args {
-		ret = expr.Value(env)
+		ret = expr.Value(env.globalVars)
 	}
 	return ret
 }

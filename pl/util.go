@@ -211,7 +211,18 @@ func findFunc(word IdentNode, v *Vars) *Func {
 			//vars.lock.RUnlock()
 			val := <-ch
 			ch <- val
-			f = val.(Func)
+			switch val.Type() {
+			case NodeFunc:
+				f = val.(Func)
+			case NodeIdent:
+				if pf := findFunc(val.(IdentNode), v); pf != nil {
+					return pf
+				} else {
+					return nil
+				}
+			default:
+				log.Panicf("findFunc>> unexpected type, name:%s, type: %s, value: %s", word.String(), type_(v, []Node{val}), val.String())
+			}
 			goto Apply
 		}
 
@@ -244,6 +255,9 @@ Apply:
 
 func applyFunc(f *Func, args []Node, v *Vars) Node {
 	//log.Println(f.name, args, env.current.deep, env.current.name)
+	if f == nil {
+		return newIdentNode("<unbound>")
+	}
 	switch f.mode {
 	case BuiltIn:
 		var list []Node
@@ -261,6 +275,10 @@ func applyFunc(f *Func, args []Node, v *Vars) Node {
 		return f.ud.apply(f.name, args, v)
 	}
 	return newIdentNode("<unexpected>")
+}
+
+func makeLambda(name string, t FuncType, v *Vars, arg Node, body []Node) Func {
+	return Func{NodeType: NodeFunc, name: name, mode: t, ud: &Lambda{vars: v, arg: arg, body: body}}
 }
 
 func makeVar(expr *Node) chan Node {

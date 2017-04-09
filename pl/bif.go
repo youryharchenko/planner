@@ -51,7 +51,9 @@ func def(v *Vars, args []Node) Node {
 			id := list.Nodes[0].(IdentNode)
 			switch id.Ident {
 			case "lambda":
-				val = Func{name: ident.String(), mode: UserDef, ud: &Lambda{vars: v, arg: list.Nodes[1], body: list.Nodes[2:]}}
+				val = makeLambda(ident.String(), UserDef, v, list.Nodes[1], list.Nodes[2:])
+				//func makeLambda(ident IdentNode, t FuncType, v *Vars, arg Node, body []Node) Func
+				//val = Func{NodeType: NodeFunc, name: ident.String(), mode: UserDef, ud: &Lambda{vars: v, arg: list.Nodes[1], body: list.Nodes[2:]}}
 				ret = list
 			default:
 				val = args[1].Value(v)
@@ -236,6 +238,10 @@ func gtint(v *Vars, args []Node) Node {
 	} else {
 		return newListNode([]Node{})
 	}
+}
+
+func lambda(v *Vars, args []Node) Node {
+	return makeLambda("lambda", UserDef, v, args[0], args[1:])
 }
 
 func ltfloat(v *Vars, args []Node) Node {

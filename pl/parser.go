@@ -34,6 +34,7 @@ const (
 	NodeVector
 	NodeList
 	NodeRef
+	NodeFunc
 )
 
 type IdentNode struct {

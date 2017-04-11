@@ -18,7 +18,7 @@ func absfloat(v *Vars, args []Node) Node {
 }
 
 func and(v *Vars, args []Node) Node {
-	nv := v.new_current_local("and", newListNode([]Node{}))
+	nv := v.new_current_local("and", newVectNode([]Node{}))
 
 	go nv.run_and(args[:])
 
@@ -30,7 +30,7 @@ func and(v *Vars, args []Node) Node {
 }
 
 func cond(v *Vars, args []Node) Node {
-	nv := v.new_current_local("cond", newListNode([]Node{}))
+	nv := v.new_current_local("cond", newVectNode([]Node{}))
 
 	go nv.run_cond(args[:])
 
@@ -42,20 +42,24 @@ func cond(v *Vars, args []Node) Node {
 
 func def(v *Vars, args []Node) Node {
 	ident := args[0].(IdentNode)
-	val := args[1]
-	var ret Node
+	ret := args[1].Value(v)
 
-	if val.Type() == NodeList {
-		list := val.(ListNode)
-		if list.Nodes[0].Type() == NodeIdent {
-			id := list.Nodes[0].(IdentNode)
-			switch id.Ident {
-			case "lambda":
-				val = makeLambda(ident.String(), UserDef, v, list.Nodes[1], list.Nodes[2:])
-				//func makeLambda(ident IdentNode, t FuncType, v *Vars, arg Node, body []Node) Func
-				//val = Func{NodeType: NodeFunc, name: ident.String(), mode: UserDef, ud: &Lambda{vars: v, arg: list.Nodes[1], body: list.Nodes[2:]}}
-				ret = list
-			default:
+	/*
+		if val.Type() == Node {
+			list := val.(ListNode)
+			if list.Nodes(0).Type() == NodeIdent {
+				id := list.Nodes(0).(IdentNode)
+				switch id.Ident {
+				case "lambda":
+					val = makeLambda(ident.String(), v, list.Nodes(1), list.Tail(2))
+					//func makeLambda(ident IdentNode, t FuncType, v *Vars, arg Node, body []Node) Func
+					//val = Func{NodeType: NodeFunc, name: ident.String(), mode: UserDef, ud: &Lambda{vars: v, arg: list.Nodes[1], body: list.Nodes[2:]}}
+					ret = list
+				default:
+					val = args[1].Value(v)
+					ret = val
+				}
+			} else {
 				val = args[1].Value(v)
 				ret = val
 			}
@@ -63,17 +67,14 @@ func def(v *Vars, args []Node) Node {
 			val = args[1].Value(v)
 			ret = val
 		}
-	} else {
-		val = args[1].Value(v)
-		ret = val
-	}
+	*/
 	/*
 		env.globalVars.lock.Lock()
 		env.globalVars.ctx[ident] = makeVar(&val)
 		env.globalVars.lock.Unlock()
 	*/
 	v.lock.Lock()
-	v.ctx[ident] = makeVar(&val)
+	v.ctx[ident] = makeVar(&ret)
 	v.lock.Unlock()
 	return ret
 }
@@ -122,7 +123,7 @@ func eq(v *Vars, args []Node) Node {
 	if args[0].String() == args[1].String() {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
@@ -144,7 +145,7 @@ func eqint(v *Vars, args []Node) Node {
 	if d1 == d2 {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
@@ -165,12 +166,19 @@ func exit(v *Vars, args []Node) Node {
 func fold(v *Vars, args []Node) Node {
 	word := args[0].(IdentNode)
 	init := args[1]
-	list := args[2].(ListNode).Nodes
+	var list ListNode
+	switch args[2].Type() {
+	case NodeList:
+		list = args[2].(ListNode)
+	case NodeVector:
+		list = newListNodeFromSlice(args[2].(VectorNode).Nodes[:])
+	}
+
 	f := findFunc(word, v)
 
-	nv := v.new_current_local("fold", newListNode([]Node{}))
+	nv := v.new_current_local("fold", newVectNode([]Node{}))
 
-	go nv.run_fold(f, init, list[:])
+	go nv.run_fold(f, init, list)
 
 	//ret := <-env.current.ret
 	ret := nv.wait_return()
@@ -181,13 +189,12 @@ func fold(v *Vars, args []Node) Node {
 
 func fmap(v *Vars, args []Node) Node {
 	word := args[0].(IdentNode)
-	list := args[1].(ListNode).Nodes
+	list := args[1].(ListNode)
 	f := findFunc(word, v)
 
-	new_list := []Node{}
-	nv := v.new_current_local("map", newListNode(new_list))
+	nv := v.new_current_local("map", newVectNode([]Node{}))
 
-	go nv.run_map(f, new_list[:], list[:])
+	go nv.run_map(f, newListNode(), list)
 
 	//ret := <-env.current.ret
 	ret := nv.wait_return()
@@ -214,7 +221,7 @@ func gtfloat(v *Vars, args []Node) Node {
 	if d1 > d2 {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
@@ -236,12 +243,12 @@ func gtint(v *Vars, args []Node) Node {
 	if d1 > d2 {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
 func lambda(v *Vars, args []Node) Node {
-	return makeLambda("lambda", UserDef, v, args[0], args[1:])
+	return makeLambda("lambda", v, args[0], args[1:])
 }
 
 func ltfloat(v *Vars, args []Node) Node {
@@ -262,7 +269,7 @@ func ltfloat(v *Vars, args []Node) Node {
 	if d1 < d2 {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
@@ -284,7 +291,7 @@ func ltint(v *Vars, args []Node) Node {
 	if d1 < d2 {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
@@ -292,7 +299,7 @@ func neq(v *Vars, args []Node) Node {
 	if args[0].String() != args[1].String() {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
@@ -300,12 +307,12 @@ func not(v *Vars, args []Node) Node {
 	if args[0].String() == "()" {
 		return newIdentNode("T")
 	} else {
-		return newListNode([]Node{})
+		return newListNode()
 	}
 }
 
 func or(v *Vars, args []Node) Node {
-	nv := v.new_current_local("or", newListNode([]Node{}))
+	nv := v.new_current_local("or", newVectNode([]Node{}))
 
 	go nv.run_or(args[:])
 
@@ -324,7 +331,7 @@ func print(v *Vars, args []Node) Node {
 }
 
 func prog(v *Vars, args []Node) Node {
-	vars := args[0].(ListNode)
+	vars := args[0].(VectorNode)
 	nv := v.new_current_local("prog", vars)
 
 	go nv.run_stmt(args[1:])

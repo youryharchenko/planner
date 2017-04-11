@@ -3,6 +3,7 @@ package pl
 import (
 	"fmt"
 	"go/token"
+	"log"
 	"strconv"
 )
 
@@ -35,6 +36,7 @@ const (
 	NodeList
 	NodeRef
 	NodeFunc
+	NodePair
 )
 
 type IdentNode struct {
@@ -127,28 +129,97 @@ func (node VectorNode) Value(v *Vars) Node {
 type ListNode struct {
 	// Pos
 	NodeType
-	Nodes []Node
+	Head *PairNode
+	//Nodes []Node
 }
 
 func (node ListNode) Copy() Node {
-	vect := ListNode{NodeType: node.Type(), Nodes: make([]Node, len(node.Nodes))}
-	for i, v := range node.Nodes {
-		vect.Nodes[i] = v.Copy()
+	//vect := ListNode{NodeType: node.Type(), Nodes: make([]Node, len(node.Nodes))}
+	//for i, v := range node.Nodes {
+	//	vect.Nodes[i] = v.Copy()
+	//}
+	//return vect
+	var pair *PairNode
+	list := ListNode{NodeType: node.Type(), Head: nil}
+	for pair = node.Head; pair != nil; pair = pair.Second {
+		npair := newPairNode(pair.First, list.Head)
+		list.Head = &npair
 	}
-	return vect
+	return list
+}
+
+func (node ListNode) Rev() ListNode {
+	return node.Copy().(ListNode)
 }
 
 func (node ListNode) String() string {
-	s := fmt.Sprint(node.Nodes)
-	return "(" + s[1:len(s)-1] + ")"
+	//s := fmt.Sprint(node.Nodes)
+	//return "(" + s[1:len(s)-1] + ")"
+	rev := node.Rev()
+	var pair *PairNode
+	s := "("
+	b := ""
+	for pair = rev.Head; pair != nil; pair = pair.Second {
+		s += b + pair.First.String()
+		b = " "
+	}
+	return s + ")"
 }
 
 func (node ListNode) Value(v *Vars) Node {
-	vect := ListNode{NodeType: node.Type(), Nodes: make([]Node, len(node.Nodes))}
-	for i, val := range node.Nodes {
-		vect.Nodes[i] = val.Value(v)
+	//vect := ListNode{NodeType: node.Type(), Nodes: make([]Node, len(node.Nodes))}
+	//for i, val := range node.Nodes {
+	//	vect.Nodes[i] = val.Value(v)
+	//}
+	var pair *PairNode
+	list := ListNode{NodeType: node.Type(), Head: nil}
+	for pair = node.Head; pair != nil; pair = pair.Second {
+		npair := newPairNode(pair.First.Value(v), list.Head)
+		list.Head = &npair
 	}
-	return vect
+	return list
+}
+
+func (node ListNode) Nodes(n int64) Node {
+
+	i := int64(0)
+	for pair := node.Head; pair != nil; pair = pair.Second {
+		if i == n {
+			return pair.First
+		}
+		i++
+	}
+	log.Panicf("ListNodes>>Nodes: out of range: %d", i)
+	return node
+}
+
+func (node ListNode) Tail(n int64) ListNode {
+
+	i := int64(0)
+	for pair := node.Head; pair != nil; pair = pair.Second {
+		if i == n {
+			return ListNode{NodeType: node.NodeType, Head: pair}
+		}
+		i++
+	}
+	log.Panicf("ListNodes>>Tail: out of range: %d", i)
+	return node
+}
+
+func (node ListNode) Len() int64 {
+
+	i := int64(0)
+	for pair := node.Head; pair != nil; pair = pair.Second {
+		i++
+	}
+
+	return i
+}
+
+func (node ListNode) Append(n Node) ListNode {
+	pair := newPairNode(n, node.Head)
+	node.Head = &pair
+	return node
 }
 
 type CallNode struct {
@@ -172,10 +243,22 @@ func (node CallNode) String() string {
 }
 
 func (node CallNode) Value(v *Vars) Node {
-	name := node.Callee
-	ident := name.Value(v).(IdentNode)
+	//log.Println("CallNode.Node", node.String())
+	fn := node.Callee.Value(v)
+	//log.Println("CallNode.Value", fn.String())
+	var f *Func
 
-	f := findFunc(ident, v)
+	switch fn.Type() {
+	case NodeIdent:
+		ident := fn.(IdentNode)
+		f = findFunc(ident, v)
+	case NodeFunc:
+		ff := fn.(Func)
+		f = &ff
+	default:
+		log.Println("<unexpected type CallNode>", fn.Type())
+	}
+
 	if f != nil {
 		return applyFunc(f, node.Args[:], v)
 	} else {
@@ -213,7 +296,7 @@ func parser(l *Lexer, tree []Node, lookingFor rune) []Node {
 		case ItemLeftVect:
 			tree = append(tree, newVectNode(parser(l, make([]Node, 0), ']')))
 		case ItemLeftParen:
-			tree = append(tree, newListNode(parser(l, make([]Node, 0), ')')))
+			tree = append(tree, newListNodeFromSlice(parser(l, make([]Node, 0), ')')))
 		case ItemRightParen:
 			if lookingFor != ')' {
 				panic(fmt.Sprintf("unexpected \")\" [%d]", item.Pos))
@@ -285,6 +368,23 @@ func newVectNode(content []Node) VectorNode {
 	return VectorNode{NodeType: NodeVector, Nodes: content}
 }
 
-func newListNode(content []Node) ListNode {
-	return ListNode{NodeType: NodeList, Nodes: content}
+func newListNodeFromSlice(content []Node) ListNode {
+	list := newListNode()
+	var pair *PairNode = nil
+
+	for i := len(content); i > 0; i-- {
+		node := newPairNode(content[i-1], pair)
+		pair = &node
+	}
+	list.Head = pair
+
+	return list
+}
+
+func newListNode() ListNode {
+	return ListNode{NodeType: NodeList, Head: nil}
+}
+
+func newPairNode(first Node, second *PairNode) PairNode {
+	return PairNode{NodeType: NodePair, First: first, Second: second}
 }

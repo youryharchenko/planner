@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (v *Vars) new_current_local(name string, vars ListNode) *Vars {
+func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 	//env.lock.Lock()
 
 	nv := &Vars{
@@ -28,8 +28,8 @@ func (v *Vars) new_current_local(name string, vars ListNode) *Vars {
 			//env.current.lock.Lock()
 			nv.ctx[elm.(IdentNode)] = makeVar(nil) //make(chan Node, 1)
 			//env.current.lock.Unlock()
-		case ListNode:
-			if llist := elm.(ListNode); len(llist.Nodes) == 2 {
+		case VectorNode:
+			if llist := elm.(VectorNode); len(llist.Nodes) == 2 {
 				word := llist.Nodes[0].(IdentNode)
 
 				//env.current.lock.Lock()
@@ -86,7 +86,7 @@ Loop:
 }
 
 func (v *Vars) run_cond(args []Node) {
-	list := args[0].(ListNode)
+	list := args[0].(VectorNode)
 
 	if val := list.Nodes[0].Value(v); val.String() == "()" && len(args) > 1 {
 		//env.current.lock.RLock()
@@ -99,13 +99,13 @@ func (v *Vars) run_cond(args []Node) {
 	} else {
 		var ret Node
 		if val.String() == "()" {
-			ret = newListNode([]Node{})
+			ret = newListNode()
 		} else {
 			//env.current.lock.Lock()
 			//env.current.cont = false
 			//env.current.lock.Unlock()
 
-			nv := v.new_current_local("cond clause", newListNode([]Node{}))
+			nv := v.new_current_local("cond clause", newVectNode([]Node{}))
 
 			go nv.run_stmt(list.Nodes[1:])
 
@@ -169,32 +169,35 @@ func (v *Vars) run_and(args []Node) {
 	}
 }
 
-func (v *Vars) run_fold(f *Func, val Node, list []Node) {
+func (v *Vars) run_fold(f *Func, val Node, list ListNode) {
 	//env.current.lock.RLock()
 	//defer env.current.lock.RUnlock()
 
 	//if env.current.cont && len(list) >= 1 {
-	if len(list) >= 1 {
-		newVal := applyFunc(f, []Node{val, list[0]}, v)
-		if len(list) == 1 {
+	if list.Len() >= 1 {
+		newVal := applyFunc(f, []Node{val, list.Nodes(0)}, v)
+		if list.Len() == 1 {
 			v.ret <- newVal
 		} else {
-			go v.run_fold(f, newVal, list[1:])
+			go v.run_fold(f, newVal, list.Tail(1))
 		}
 	}
 }
 
-func (v *Vars) run_map(f *Func, new_list []Node, list []Node) {
+func (v *Vars) run_map(f *Func, new_list ListNode, list ListNode) {
 	//env.current.lock.RLock()
 	//defer env.current.lock.RUnlock()
 
 	//if env.current.cont && len(list) >= 1 {
-	if len(list) >= 1 {
-		new_list = append(new_list, applyFunc(f, []Node{list[0]}, v))
-		if len(list) == 1 {
-			v.ret <- newListNode(new_list)
+	//new_list := newListNode()
+	//log.Println(list.String(), new_list.String())
+	if list.Len() >= 1 {
+		//new_list = append(new_list, applyFunc(f, []Node{list[0]}, v))
+		new_list = new_list.Append(applyFunc(f, []Node{list.Nodes(0)}, v))
+		if list.Len() == 1 {
+			v.ret <- new_list.Rev()
 		} else {
-			go v.run_map(f, new_list, list[1:])
+			go v.run_map(f, new_list, list.Tail(1))
 		}
 	}
 }
@@ -254,12 +257,13 @@ Apply:
 }
 
 func applyFunc(f *Func, args []Node, v *Vars) Node {
-	//log.Println(f.name, args, env.current.deep, env.current.name)
+
 	if f == nil {
 		return newIdentNode("<unbound>")
 	}
 	switch f.mode {
 	case BuiltIn:
+		//log.Println("applyFunc:BuiltIn", f.Type(), f.mode, f.name, args, v.deep, v.name)
 		var list []Node
 		if f.class == FSubr {
 			list = args
@@ -272,13 +276,14 @@ func applyFunc(f *Func, args []Node, v *Vars) Node {
 		//log.Println(f.name, list, v.deep, v.name)
 		return f.bi(v, list)
 	case UserDef:
+		//log.Println("applyFunc:UserDef", f.Type(), f.mode, f.name, args, v.deep, v.name)
 		return f.ud.apply(f.name, args, v)
 	}
 	return newIdentNode("<unexpected>")
 }
 
-func makeLambda(name string, t FuncType, v *Vars, arg Node, body []Node) Func {
-	return Func{NodeType: NodeFunc, name: name, mode: t, ud: &Lambda{vars: v, arg: arg, body: body}}
+func makeLambda(name string, v *Vars, arg Node, body []Node) Func {
+	return Func{NodeType: NodeFunc, name: name, mode: UserDef, ud: &Lambda{vars: v, arg: arg, body: body}}
 }
 
 func makeVar(expr *Node) chan Node {

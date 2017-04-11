@@ -190,7 +190,7 @@ func (expr Func) Value(v *Vars) Node {
 }
 
 func (expr Func) String() string {
-	return fmt.Sprintf("%v, %v, %v", expr.name, expr.mode, expr.class)
+	return fmt.Sprintf("%v", expr.name)
 }
 
 func (expr Func) Copy() Node {
@@ -205,7 +205,7 @@ type Lambda struct {
 
 func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 	//log.Println("Lambda: args", args)
-	var vars ListNode
+	var vars VectorNode
 
 	switch fn.arg.Type() {
 	case NodeIdent:
@@ -215,18 +215,18 @@ func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 
 		if arg.Ident[0] == '*' {
 			ident = newIdentNode(arg.Ident[1:])
-			param = newListNode(args)
+			param = newVectNode(args)
 		} else {
 			ident = newIdentNode(arg.Ident)
 			list := make([]Node, len(args))
 			for i, a := range args {
 				list[i] = a.Value(v)
 			}
-			param = newListNode(list)
+			param = newVectNode(list)
 		}
-		vars = newListNode([]Node{newListNode([]Node{ident, param})})
-	case NodeList:
-		lst := fn.arg.(ListNode)
+		vars = newVectNode([]Node{newVectNode([]Node{ident, param})})
+	case NodeVector:
+		lst := fn.arg.(VectorNode)
 		list := make([]Node, len(lst.Nodes))
 		for i, a := range lst.Nodes {
 			ident := a.(IdentNode)
@@ -237,9 +237,9 @@ func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 			} else {
 				param = args[i].Value(v)
 			}
-			list[i] = newListNode([]Node{ident, param})
+			list[i] = newVectNode([]Node{ident, param})
 		}
-		vars = newListNode(list)
+		vars = newVectNode(list)
 
 	}
 	//log.Println(name, vars, v.deep, v.name)
@@ -253,6 +253,25 @@ func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 	nv.del_current_local()
 	return ret
 
+}
+
+type PairNode struct {
+	NodeType
+	First  Node
+	Second *PairNode
+}
+
+func (node PairNode) Copy() Node {
+	copy := node.Second
+	return PairNode{NodeType: node.NodeType, First: node.First.Copy(), Second: copy}
+}
+
+func (node PairNode) String() string {
+	return fmt.Sprintf("(%s %s)", node.First.String(), node.Second.String())
+}
+
+func (node PairNode) Value(v *Vars) Node {
+	return PairNode{NodeType: node.NodeType, First: node.First.Value(v), Second: node.Second}
 }
 
 func Begin() *Env {
@@ -286,6 +305,8 @@ func Begin() *Env {
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: gtfloat})
 	name = "gt$int"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: gtint})
+	name = "lambda"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: lambda})
 	name = "lt$float"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: ltfloat})
 	name = "lt$int"

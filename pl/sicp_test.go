@@ -81,7 +81,17 @@ func TestSICP(t *testing.T) {
 		Test{"{def integral {lambda [f a b dx] {def add-dx {lambda [x] {sum$float .x .dx}}} {prod$float {sumf .f {sum$float .a {div$float .dx 2.0}} add-dx .b} .dx}}}", "lambda"},
 		Test{"{integral cube 0 1 0.01}", "0.500000"},
 		Test{fmt.Sprintf("{prod$float 8 {%s 1 1000}}", lambda_pi_sum), "3.139593"},
-		//
+		// let
+		Test{"{let [[x 5]] {sum$int {let [[x 3]] {sum$int .x {prod$int .x 10}}} .x}}", "38"},
+		Test{"{let [[x 2]] {let [[x 3] [y {sum$int .x 2}]] {prod$int .x .y}}}", "12"},
+		// Finding roots of equations by the half-interval method
+		Test{search_lambda, "lambda"},
+		Test{close_enough_lambda, "lambda"},
+		Test{half_interval_method_lambda, "lambda"},
+		Test{"{def negative {lambda [x] {lt$float .x 0.0}}}", "lambda"},
+		Test{"{def positive {lambda [x] {gt$float .x 0.0}}}", "lambda"},
+		Test{"{half-interval-method sin 2.0 4.0}", "3.141113"},
+		Test{"{half-interval-method {lambda [x] {sub$float {prod$float .x .x .x} {prod$float 2.0 .x} 3.0}} 1.0 2.0}", "1.893066"},
 		//Test{"", ""},
 	}
 
@@ -142,4 +152,43 @@ var lambda_pi_sum = `
 			.b
 		}
 	}
+`
+var search_lambda = `
+{def search
+	{lambda [f neg-point pos-point]
+		{let [[midpoint {average .neg-point .pos-point}]]
+			{if {close-enough .neg-point .pos-point}
+				.midpoint
+				{let [[test-value {f .midpoint}]]
+					{cond
+						[{positive .test-value} {search .f .neg-point .midpoint}]
+						[{negative .test-value} {search .f .midpoint .pos-point}]
+						[else .midpoint]
+					}
+				}
+			}
+		}
+	}
+}
+`
+var close_enough_lambda = `
+{def close-enough
+	{lambda [x y]
+		{lt$float {abs$float {sub$float .x .y}} 0.001}
+	}
+}
+`
+
+var half_interval_method_lambda = `
+{def half-interval-method
+	{lambda [f a b]
+		{let [[a-value {.f .a}] [b-value {.f .b}]]
+			{cond
+				[{and {negative .a-value} {positive .b-value}} {search .f .a .b}]
+				[{and {negative .b-value} {positive .a-value}} {search .f .b .a}]
+				[else {print "Values are not of opposite sign" a b}]
+			}
+		}
+	}
+}
 `

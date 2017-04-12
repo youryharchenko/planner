@@ -330,9 +330,14 @@ func print(v *Vars, args []Node) Node {
 	return args[len(args)-1]
 }
 
-func prog(v *Vars, args []Node) Node {
+func let(v *Vars, args []Node) Node {
 	vars := args[0].(VectorNode)
-	nv := v.new_current_local("prog", vars)
+	nvars := make([]Node, len(vars.Nodes))
+
+	for i, n := range vars.Nodes {
+		nvars[i] = n.Value(v)
+	}
+	nv := v.new_current_local("prog", newVectNode(nvars))
 
 	go nv.run_stmt(args[1:])
 
@@ -394,6 +399,17 @@ func prodint(v *Vars, args []Node) Node {
 		}
 	}
 	return newInt(p)
+}
+
+func sin(v *Vars, args []Node) Node {
+	var s float64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		s = math.Sin(float64(args[0].(NumberNode).Int))
+	case token.FLOAT:
+		s = math.Sin(args[0].(NumberNode).Float)
+	}
+	return newFloat(s)
 }
 
 func subfloat(v *Vars, args []Node) Node {

@@ -92,6 +92,10 @@ func TestSICP(t *testing.T) {
 		Test{"{def positive {lambda [x] {gt$float .x 0.0}}}", "lambda"},
 		Test{"{half-interval-method sin 2.0 4.0}", "3.141113"},
 		Test{"{half-interval-method {lambda [x] {sub$float {prod$float .x .x .x} {prod$float 2.0 .x} 3.0}} 1.0 2.0}", "1.893066"},
+		// Finding fixed points of functions
+		Test{"{def tolerance 0.00001}", "0.00001"},
+		Test{fixed_point_lambda, "lambda"},
+		Test{"{fixed-point cos 1.0}", "0.739082"},
 		//Test{"", ""},
 	}
 
@@ -159,7 +163,7 @@ var search_lambda = `
 		{let [[midpoint {average .neg-point .pos-point}]]
 			{if {close-enough .neg-point .pos-point}
 				.midpoint
-				{let [[test-value {f .midpoint}]]
+				{let [[test-value {.f .midpoint}]]
 					{cond
 						[{positive .test-value} {search .f .neg-point .midpoint}]
 						[{negative .test-value} {search .f .midpoint .pos-point}]
@@ -189,6 +193,29 @@ var half_interval_method_lambda = `
 				[else {print "Values are not of opposite sign" a b}]
 			}
 		}
+	}
+}
+`
+
+var fixed_point_lambda = `
+{def fixed-point
+	{lambda [f first-guess]
+		{def close-enough
+			{lambda [v1 v2]
+				{lt$float {abs$float {sub$float .v1 .v2}} .tolerance}
+			}
+		}
+		{def try
+			{lambda [guess]
+				{let [[next {.f .guess}]]
+					{if {close-enough .guess .next}
+						.next
+						{try .next}
+					}
+				}
+			}
+		}
+		{try .first-guess}
 	}
 }
 `

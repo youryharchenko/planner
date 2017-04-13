@@ -25,16 +25,16 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 	for _, elm := range vars.Nodes {
 		switch elm.(type) {
 		case IdentNode:
-			//env.current.lock.Lock()
+			nv.lock.Lock()
 			nv.ctx[elm.(IdentNode)] = makeVar(nil) //make(chan Node, 1)
-			//env.current.lock.Unlock()
+			nv.lock.Unlock()
 		case VectorNode:
 			if llist := elm.(VectorNode); len(llist.Nodes) == 2 {
 				word := llist.Nodes[0].(IdentNode)
 
-				//env.current.lock.Lock()
+				nv.lock.Lock()
 				nv.ctx[word] = makeVar(&llist.Nodes[1])
-				//env.current.lock.Unlock()
+				nv.lock.Unlock()
 			}
 		}
 	}
@@ -203,41 +203,64 @@ func (v *Vars) run_map(f *Func, new_list ListNode, list ListNode) {
 }
 
 func findFunc(word IdentNode, v *Vars) *Func {
-	//env.lock.RLock()
-	vars := v
-	//env.lock.RUnlock()
 
-	var f Func
-	//vars.lock.RLock()
-	for {
-		if ch, ok := vars.ctx[word]; ok {
-			//vars.lock.RUnlock()
-			val := <-ch
-			ch <- val
-			switch val.Type() {
-			case NodeFunc:
-				f = val.(Func)
-			case NodeIdent:
-				if pf := findFunc(val.(IdentNode), v); pf != nil {
-					return pf
+	for i := 0; i < 3; i++ {
+		//env.lock.RLock()
+		vars := v
+		//env.lock.RUnlock()
+
+		//var f Func
+
+		for {
+			v.lock.RLock()
+			if ch, ok := vars.ctx[word]; ok {
+				v.lock.RUnlock()
+				if ch != nil {
+
+					var val Node
+					select {
+					case val = <-ch:
+						ch <- val
+					case <-time.After(time.Second * 5):
+						log.Panicf("find function timeout: %s, deep: %d, ctx: %s", word.String(), v.deep, v.name)
+					}
+
+					//log.Println("Function found", word, val)
+
+					switch val.Type() {
+					case NodeFunc:
+						f := val.(Func)
+						return &f
+					case NodeIdent:
+						if pf := findFunc(val.(IdentNode), v); pf != nil {
+							return pf
+						} else {
+							return nil
+						}
+					default:
+						log.Panicf("findFunc>> unexpected type, name:%s, type: %s, value: %s", word.String(), type_(v, []Node{val}), val.String())
+					}
+					// goto Apply
 				} else {
-					return nil
+					log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
 				}
-			default:
-				log.Panicf("findFunc>> unexpected type, name:%s, type: %s, value: %s", word.String(), type_(v, []Node{val}), val.String())
+			} else {
+				v.lock.RUnlock()
 			}
-			goto Apply
-		}
 
-		if vars.next == nil {
+			if vars.next == nil {
+				//vars.lock.RUnlock()
+				break
+			}
+			nvars := vars.next
 			//vars.lock.RUnlock()
-			break
+			vars = nvars
+			//vars.lock.RLock()
 		}
-		nvars := vars.next
-		//vars.lock.RUnlock()
-		vars = nvars
-		//vars.lock.RLock()
+		time.Sleep(time.Millisecond * 1)
+		log.Printf("warning, wait function %s, deep: %d, ctx: %s", word.String(), v.deep, v.name)
 	}
+	log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
 	//env.globalVars.lock.RLock()
 	/*
 		if ch, ok := env.globalVars.ctx[word]; ok {
@@ -252,8 +275,8 @@ func findFunc(word IdentNode, v *Vars) *Func {
 			return nil
 		}
 	*/
-Apply:
-	return &f
+	//Apply:
+	return nil
 }
 
 func applyFunc(f *Func, args []Node, v *Vars) Node {

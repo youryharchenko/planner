@@ -40,39 +40,21 @@ func cond(v *Vars, args []Node) Node {
 	return ret
 }
 
+func cos(v *Vars, args []Node) Node {
+	var s float64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		s = math.Cos(float64(args[0].(NumberNode).Int))
+	case token.FLOAT:
+		s = math.Cos(args[0].(NumberNode).Float)
+	}
+	return newFloat(s)
+}
+
 func def(v *Vars, args []Node) Node {
 	ident := args[0].(IdentNode)
 	ret := args[1].Value(v)
 
-	/*
-		if val.Type() == Node {
-			list := val.(ListNode)
-			if list.Nodes(0).Type() == NodeIdent {
-				id := list.Nodes(0).(IdentNode)
-				switch id.Ident {
-				case "lambda":
-					val = makeLambda(ident.String(), v, list.Nodes(1), list.Tail(2))
-					//func makeLambda(ident IdentNode, t FuncType, v *Vars, arg Node, body []Node) Func
-					//val = Func{NodeType: NodeFunc, name: ident.String(), mode: UserDef, ud: &Lambda{vars: v, arg: list.Nodes[1], body: list.Nodes[2:]}}
-					ret = list
-				default:
-					val = args[1].Value(v)
-					ret = val
-				}
-			} else {
-				val = args[1].Value(v)
-				ret = val
-			}
-		} else {
-			val = args[1].Value(v)
-			ret = val
-		}
-	*/
-	/*
-		env.globalVars.lock.Lock()
-		env.globalVars.ctx[ident] = makeVar(&val)
-		env.globalVars.lock.Unlock()
-	*/
 	v.lock.Lock()
 	v.ctx[ident] = makeVar(&ret)
 	v.lock.Unlock()
@@ -337,7 +319,7 @@ func let(v *Vars, args []Node) Node {
 	for i, n := range vars.Nodes {
 		nvars[i] = n.Value(v)
 	}
-	nv := v.new_current_local("prog", newVectNode(nvars))
+	nv := v.new_current_local("let", newVectNode(nvars))
 
 	go nv.run_stmt(args[1:])
 

@@ -96,42 +96,48 @@ func newRefNode(val string) RefNode {
 func (expr RefNode) Value(v *Vars) Node {
 	switch expr.mode {
 	case LocalValue:
-		vars := v
-		for {
-			//vars.lock.RLock()
-			if ch, ok := vars.ctx[expr.ref]; ok {
-				if ch != nil {
-					var val Node
-					select {
-					case val = <-ch:
-						//log.Println("Ref Value:", expr.ref, val)
-						ch <- val
-						return val
-					case <-time.After(time.Second * 5):
-						//log.Println("Ref Value timeout", expr.ref)
-						//return newIdentNode("<timeout>")
-						//log.Panicln("ref value timeout", expr.ref)
-						log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
+		for i := 0; i < 3; i++ {
+			vars := v
+			for {
+				//vars.lock.RLock()
+				if ch, ok := vars.ctx[expr.ref]; ok {
+					if ch != nil {
+						var val Node
+						select {
+						case val = <-ch:
+							//log.Println("Ref Value:", expr.ref, val)
+							ch <- val
+							return val
+						case <-time.After(time.Second * 5):
+							//log.Println("Ref Value timeout", expr.ref)
+							//return newIdentNode("<timeout>")
+							//log.Panicln("ref value timeout", expr.ref)
+							log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
+						}
+					} else {
+						//fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
+						//return newIdentNode("<unassigned>")
+						//log.Panicf("Variable %s <unassigned>", expr.ref.String())
+						log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 					}
-				} else {
-					//fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
-					//return newIdentNode("<unassigned>")
-					//log.Panicf("Variable %s <unassigned>", expr.ref.String())
-					log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 				}
-			}
 
-			if vars.next == nil {
-				//fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
-				//return newIdentNode("<unbound>")
-				//log.Panicf("Variable %s <unbound>", expr.ref.String())
-				v.printTrace()
-				log.Panicf("variable %s <unbound>, deep: %d, ctx: %s(%v)", expr.ref.String(), v.deep, v.name, v.ctx)
+				if vars.next == nil {
+					break
+					//fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
+					//return newIdentNode("<unbound>")
+					//log.Panicf("Variable %s <unbound>", expr.ref.String())
+					//v.printTrace()
+					//log.Panicf("variable %s <unbound>, deep: %d, ctx: %s(%v)", expr.ref.String(), v.deep, v.name, v.ctx)
+				}
+				nvars := vars.next
+				//vars.lock.RUnlock()
+				vars = nvars
 			}
-			nvars := vars.next
-			//vars.lock.RUnlock()
-			vars = nvars
+			time.Sleep(time.Millisecond * 1)
+			log.Printf("warning, wait variable %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 		}
+		log.Panicf("variable %s <unbound>, deep: %d, ctx: %s(%v)", expr.ref.String(), v.deep, v.name, v.ctx)
 	case GlobalValue:
 		globalVars := v.findGlobal()
 		globalVars.lock.RLock()
@@ -285,6 +291,8 @@ func Begin() *Env {
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: and})
 	name = "cond"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: cond})
+	name = "cos"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cos})
 	name = "def"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: def})
 	name = "div$float"

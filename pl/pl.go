@@ -41,6 +41,8 @@ type Vars struct {
 	//cont bool
 	next *Vars
 
+	debug bool
+
 	lock sync.RWMutex
 }
 
@@ -58,13 +60,22 @@ func (v *Vars) findGlobal() *Vars {
 func (v *Vars) printTrace() {
 	cv := v
 	for {
-		log.Printf("Trace>> deep: %d, ctx: %s(%v)", cv.deep, cv.name, cv.ctx)
 		if cv.next == nil {
 			return
-		} else {
-			cv = cv.next
 		}
+		log.Printf("Trace>> deep: %d, ctx: %s %v", cv.deep, cv.name, cv.String())
+		cv = cv.next
 	}
+}
+
+func (v *Vars) String() string {
+	s := "\n"
+	for k, v := range v.ctx {
+		n := <-v
+		v <- n
+		s += k.String() + ": " + n.String() + "\n"
+	}
+	return s
 }
 
 type Env struct {
@@ -250,7 +261,16 @@ func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 	}
 	//log.Println(name, vars, v.deep, v.name)
 	//nv := fn.vars.new_current_local(name, vars)
-	nv := v.new_current_local(name, vars)
+
+	nv := v.new_current_local(name, newVectNode([]Node{})).
+		merge(fn.vars).
+		new_current_local(name, vars)
+
+	if v.debug {
+		v.printTrace()
+		//log.Println("=============")
+		//fn.vars.printTrace()
+	}
 
 	go nv.run_stmt(fn.body)
 
@@ -282,7 +302,7 @@ func (node PairNode) Value(v *Vars) Node {
 
 func Begin() *Env {
 	var name string
-	global := Vars{name: "global", deep: 0, ctx: map[IdentNode]chan Node{}, next: nil}
+	global := Vars{name: "global", deep: 0, ctx: map[IdentNode]chan Node{}, next: nil, debug: false}
 	//local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
 	name = "abs$float"
@@ -293,6 +313,8 @@ func Begin() *Env {
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: cond})
 	name = "cos"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cos})
+	name = "debug"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: debug_})
 	name = "def"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: def})
 	name = "div$float"

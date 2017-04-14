@@ -71,15 +71,18 @@ func TestSICP(t *testing.T) {
 		Test{"{def inc {lambda [n] {sum$int .n 1}}}", "lambda"},
 		Test{"{def identity {lambda [x] .x}}", "lambda"},
 		Test{"{def cube {lambda [x] {prod$int .x .x .x}}}", "lambda"},
+		Test{"{def cubef {lambda [x] {prod$float .x .x .x}}}", "lambda"},
 		Test{"{def sum-int {lambda [a b] {sum identity .a inc .b}}}", "lambda"},
 		Test{"{def sum-cube {lambda [a b] {sum cube .a inc .b}}}", "lambda"},
 		Test{"{sum-int 1 10}", "55"},
 		Test{"{sum-cube 1 10}", "3025"},
-		Test{"{def sumf {lambda [term a next b] {if {gt$float .a .b} 0 {sum$float {term .a} {sumf .term {next .a} .next .b}}}}}", "lambda"},
+		Test{sumf_lambda, "lambda"},
 		Test{"{def pi-sum {lambda [a b] {def pi-term {lambda [x] {div$float 1.0 {prod$float .x {sum$float .x 2}}}}} {def pi-next {lambda [x] {sum$float .x 4}}} {sumf pi-term .a pi-next .b}}}", "lambda"},
 		Test{"{prod$float 8 {pi-sum 1 1000}}", "3.139593"},
-		Test{"{def integral {lambda [f a b dx] {def add-dx {lambda [x] {sum$float .x .dx}}} {prod$float {sumf .f {sum$float .a {div$float .dx 2.0}} add-dx .b} .dx}}}", "lambda"},
-		Test{"{integral cube 0 1 0.01}", "0.500000"},
+		Test{integral_lambda, "lambda"},
+		//Test{"{debug on}", "on"},
+		Test{"{integral cubef 0.1 1.0 0.01}", "0.249963"},
+		//Test{"{debug ()}", "()"},
 		Test{fmt.Sprintf("{prod$float 8 {%s 1 1000}}", lambda_pi_sum), "3.139593"},
 		// let
 		Test{"{let [[x 5]] {sum$int {let [[x 3]] {sum$int .x {prod$int .x 10}}} .x}}", "38"},
@@ -96,6 +99,13 @@ func TestSICP(t *testing.T) {
 		Test{"{def tolerance 0.00001}", "0.00001"},
 		Test{fixed_point_lambda, "lambda"},
 		Test{"{fixed-point cos 1.0}", "0.739082"},
+		Test{"{fixed-point {lambda [y] {sum$float {sin .y} {cos .y}}} 1.0}", "1.258732"},
+		// Procedures as Returned Values
+		Test{average_damp_lambda, "lambda"},
+		Test{"{{average-damp square} 10}", "55.000000"},
+		Test{sqrt_lambda, "lambda"},
+		//Test{"{debug on}", "on"},
+		Test{"{sqrt 49.0}", "7.000000"},
 		//Test{"", ""},
 	}
 
@@ -216,6 +226,62 @@ var fixed_point_lambda = `
 			}
 		}
 		{try .first-guess}
+	}
+}
+`
+var average_damp_lambda = `
+{def average-damp
+ 	{lambda [f]
+		{lambda [x]
+			{average .x {f .x}}
+		}
+	}
+}
+`
+
+var sqrt_lambda = `
+{def sqrt
+ 	{lambda [x]
+		{fixed-point
+			{average-damp
+				{lambda [y] {div$float .x .y}}
+			}
+			1.0
+		}
+	}
+}
+`
+
+var sumf_lambda = `
+{def sumf
+	{lambda [term a next b]
+		{if {gt$float .a .b}
+			0
+			{sum$float {term .a} {sumf .term {next .a} .next .b}}
+		}
+	}
+}
+`
+var integral_lambda = `
+{def integral
+	{lambda [f a b dx]
+		{def add-dx
+			{lambda [x]
+				{sum$float .x .dx}
+			}
+		}
+		{prod$float
+			{sumf
+				.f
+				{sum$float
+					.a
+					{div$float .dx 2.0}
+				}
+				.add-dx
+				.b
+			}
+			.dx
+		}
 	}
 }
 `

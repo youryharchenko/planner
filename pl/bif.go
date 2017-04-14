@@ -51,6 +51,15 @@ func cos(v *Vars, args []Node) Node {
 	return newFloat(s)
 }
 
+func debug_(v *Vars, args []Node) Node {
+	if args[0].String() == "()" {
+		v.debug = false
+	} else {
+		v.debug = true
+	}
+	return args[0]
+}
+
 func def(v *Vars, args []Node) Node {
 	ident := args[0].(IdentNode)
 	ret := args[1].Value(v)

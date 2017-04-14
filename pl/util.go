@@ -10,12 +10,13 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 	//env.lock.Lock()
 
 	nv := &Vars{
-		name: name,
-		deep: v.deep + 1,
-		ctx:  map[IdentNode]chan Node{},
-		next: v,
-		ret:  make(chan Node),
-		exit: make(chan Node),
+		name:  name,
+		deep:  v.deep + 1,
+		ctx:   map[IdentNode]chan Node{},
+		next:  v,
+		ret:   make(chan Node),
+		exit:  make(chan Node),
+		debug: v.debug,
 		//cont: true,
 		lock: sync.RWMutex{},
 	}
@@ -39,6 +40,25 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 		}
 	}
 	return nv
+}
+
+func (v *Vars) merge(a *Vars) *Vars {
+	cv := a
+	for {
+		cv.lock.RLock()
+		if cv.next == nil {
+			cv.lock.RUnlock()
+			break
+		}
+		for key, val := range cv.ctx {
+			v.lock.Lock()
+			v.ctx[key] = val
+			v.lock.Unlock()
+		}
+		cv.lock.RUnlock()
+		cv = cv.next
+	}
+	return v
 }
 
 func (v *Vars) del_current_local() {
@@ -258,8 +278,10 @@ func findFunc(word IdentNode, v *Vars) *Func {
 			//vars.lock.RLock()
 		}
 		time.Sleep(time.Millisecond * 1)
+		v.printTrace()
 		log.Printf("warning, wait function %s, deep: %d, ctx: %s", word.String(), v.deep, v.name)
 	}
+	v.printTrace()
 	log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
 	//env.globalVars.lock.RLock()
 	/*
@@ -286,7 +308,9 @@ func applyFunc(f *Func, args []Node, v *Vars) Node {
 	}
 	switch f.mode {
 	case BuiltIn:
-		//log.Println("applyFunc:BuiltIn", f.Type(), f.mode, f.name, args, v.deep, v.name)
+		if v.debug {
+			log.Println("applyFunc:BuiltIn", f.Type(), f.mode, f.name, args, v.deep, v.name)
+		}
 		var list []Node
 		if f.class == FSubr {
 			list = args
@@ -299,7 +323,9 @@ func applyFunc(f *Func, args []Node, v *Vars) Node {
 		//log.Println(f.name, list, v.deep, v.name)
 		return f.bi(v, list)
 	case UserDef:
-		//log.Println("applyFunc:UserDef", f.Type(), f.mode, f.name, args, v.deep, v.name)
+		if v.debug {
+			log.Println("applyFunc:UserDef", f.Type(), f.mode, f.name, args, v.deep, v.name)
+		}
 		return f.ud.apply(f.name, args, v)
 	}
 	return newIdentNode("<unexpected>")

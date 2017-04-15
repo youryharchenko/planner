@@ -98,6 +98,7 @@ Loop:
 			break Loop
 		case <-time.After(time.Second * 20):
 			ret = newIdentNode("<timeout>")
+			v.printTrace()
 			log.Panicf("wait_return: select timeout, deep: %d, ctx: %s", v.deep, v.name)
 			break Loop
 		}

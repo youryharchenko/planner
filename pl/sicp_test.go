@@ -106,7 +106,35 @@ func TestSICP(t *testing.T) {
 		Test{sqrt_lambda, "lambda"},
 		//Test{"{debug on}", "on"},
 		Test{"{sqrt 49.0}", "7.000000"},
+		Test{cube_root_lambda, "lambda"},
+		Test{"{cube-root 64.0}", "3.999994"},
+		Test{deriv_lambda, "lambda"},
+		Test{"{def dx 0.00001}", "0.00001"},
+		Test{"{{deriv cubef} 5}", "75.000150"},
+		Test{squaref_lambda, "lambda"},
+		Test{newton_transform_lambda, "lambda"},
+		Test{newtons_method_lambda, "lambda"},
+		Test{sqrt2_lambda, "lambda"},
+		//Test{"{debug on}", "on"},
+		Test{"{sqrt2 121.0}", "11.000000"},
+		// Example: Arithmetic Operations for Rational Numbers
+		Test{"{cons 1 2}", "[1 2]"},
+		Test{"{def x {cons 1 2}}", "[1 2]"},
+		Test{"{car .x}", "1"},
+		Test{"{cdr .x}", "2"},
+		Test{"{def y {cons 3 4}}", "[3 4]"},
+		Test{"{def z {cons .x .y}}", "[[1 2] [3 4]]"},
+		Test{"{car {car .z}}", "1"},
+		Test{"{car {cdr .z}}", "3"},
+		Test{rat_operations, "lambda"},
+		Test{"{def one-half {make-rat 1 2}}", "[1 2]"},
+		Test{":one-half", "[1 2]"},
+		Test{"{def one-third {make-rat 1 3}}", "[1 3]"},
+		Test{"{add-rat :one-half :one-third}", "[5 6]"},
+		Test{"{mul-rat :one-half :one-third}", "[1 6]"},
+		Test{"{add-rat :one-third :one-third}", "[6 9]"},
 		//Test{"", ""},
+
 	}
 
 	env := Begin()
@@ -132,6 +160,13 @@ var lambda_square = `
 	{lambda [x]
 		{prod$int .x .x}
 	}
+`
+var squaref_lambda = `
+{def squaref
+	{lambda [x]
+		{prod$float .x .x}
+	}
+}
 `
 var lambda_f = `
 	{lambda [a]
@@ -252,6 +287,55 @@ var sqrt_lambda = `
 }
 `
 
+var cube_root_lambda = `
+{def cube-root
+	{lambda [x]
+  	{fixed-point
+			{average-damp
+				{lambda [y] {div$float .x {square .y}}}
+			}
+			1.0
+		}
+	}
+}
+`
+
+var deriv_lambda = `
+{def deriv
+	{lambda [g]
+		{lambda [x]
+			{div$float {sub$float {.g {sum$float .x .dx}} {.g .x}} .dx}
+		}
+	}
+}
+`
+
+var newton_transform_lambda = `
+{def newton-transform
+ 	{lambda [g]
+  	{lambda [x]
+    	{sub$float .x {div$float {.g .x} {{deriv .g} .x}}}
+		}
+	}
+}
+`
+
+var newtons_method_lambda = `
+{def newtons-method
+ 	{lambda [g guess]
+    {fixed-point {newton-transform .g} .guess}
+	}
+}
+`
+
+var sqrt2_lambda = `
+{def sqrt2
+	{lambda [x]
+    {newtons-method {lambda [y] {sub$float {squaref .y} .x}} 1.0}
+	}
+}
+`
+
 var sumf_lambda = `
 {def sumf
 	{lambda [term a next b]
@@ -281,6 +365,52 @@ var integral_lambda = `
 				.b
 			}
 			.dx
+		}
+	}
+}
+`
+var rat_operations = `
+{def make-rat {lambda [n d] {cons .n .d}}}
+{def numer {lambda [x] {car .x}}}
+{def denom {lambda [x] {cdr .x}}}
+{def add-rat
+	{lambda [x y]
+    {make-rat
+			{sum$int {prod$int {numer .x} {denom .y}}
+    		{prod$int {numer .y} {denom .x}}
+			}
+    	{prod$int {denom .x} {denom .y}}
+		}
+	}
+}
+{def sub-rat
+	{lambda [x y]
+    {make-rat
+			{sub$int {prod$int {numer .x} {denom .y}}
+				{prod$int {numer .y} {denom .x}}
+			}
+			{prod$int {denom .x} {denom .y}}
+		}
+	}
+}
+{def mul-rat
+	{lambda [x y]
+    {make-rat {prod$int {numer .x} {numer .y}}
+    	{prod$int {denom .x} {denom .y}}
+		}
+	}
+}
+{def div-rat
+	{lambda [x y]
+    {make-rat {prod$int {numer .x} {denom .y}}
+    	{prod$int {denom .x} {numer .y}}
+		}
+	}
+}
+{def equal-rat
+	{lambda [x y]
+    {eq$int {prod$int {numer .x} {denom .y}}
+    	{prod$int {numer .y} {denom .x}}
 		}
 	}
 }

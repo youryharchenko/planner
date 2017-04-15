@@ -29,6 +29,14 @@ func and(v *Vars, args []Node) Node {
 	return ret
 }
 
+func car(v *Vars, args []Node) Node {
+	return args[0].(VectorNode).Nodes[0]
+}
+
+func cdr(v *Vars, args []Node) Node {
+	return args[0].(VectorNode).Nodes[1]
+}
+
 func cond(v *Vars, args []Node) Node {
 	nv := v.new_current_local("cond", newVectNode([]Node{}))
 
@@ -38,6 +46,10 @@ func cond(v *Vars, args []Node) Node {
 
 	nv.del_current_local()
 	return ret
+}
+
+func cons(v *Vars, args []Node) Node {
+	return newVectNode([]Node{args[0], args[1]})
 }
 
 func cos(v *Vars, args []Node) Node {

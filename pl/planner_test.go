@@ -57,6 +57,7 @@ func TestLang(t *testing.T) {
 		Test{"{if {lt$float 0.002 0.001} {div$float 1 0} {div$float 1 1}}", "1.000000"},
 		Test{"{def cloj {lambda [p] {def fn {lambda [] .p}} {fn}}}", "lambda"},
 		Test{"{cloj Hello}", "Hello"},
+		Test{"{remainder 10 4}", "2"},
 		//Test{"", ""},
 	}
 

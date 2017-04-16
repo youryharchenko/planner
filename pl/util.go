@@ -214,7 +214,7 @@ func (v *Vars) run_map(f *Func, new_list ListNode, list ListNode) {
 	//log.Println(list.String(), new_list.String())
 	if list.Len() >= 1 {
 		//new_list = append(new_list, applyFunc(f, []Node{list[0]}, v))
-		new_list = new_list.Append(applyFunc(f, []Node{list.Nodes(0)}, v))
+		new_list = new_list.Cons(applyFunc(f, []Node{list.Nodes(0)}, v))
 		if list.Len() == 1 {
 			v.ret <- new_list.Rev()
 		} else {

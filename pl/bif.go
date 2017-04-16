@@ -30,11 +30,23 @@ func and(v *Vars, args []Node) Node {
 }
 
 func car(v *Vars, args []Node) Node {
-	return args[0].(VectorNode).Nodes[0]
+	switch args[0].Type() {
+	case NodeList:
+		return args[0].(ListNode).Head.First
+	default:
+		return args[0].(VectorNode).Nodes[0]
+	}
+
 }
 
 func cdr(v *Vars, args []Node) Node {
-	return args[0].(VectorNode).Nodes[1]
+	switch args[0].Type() {
+	case NodeList:
+		return args[0].(ListNode).Tail(1)
+	default:
+		return args[0].(VectorNode).Nodes[1]
+	}
+
 }
 
 func cond(v *Vars, args []Node) Node {
@@ -49,7 +61,16 @@ func cond(v *Vars, args []Node) Node {
 }
 
 func cons(v *Vars, args []Node) Node {
-	return newVectNode([]Node{args[0], args[1]})
+	switch args[1].Type() {
+	case NodeList:
+		if args[1].String() == "()" {
+			return newListNode().Cons(args[0])
+		} else {
+			return args[1].(ListNode).Cons(args[0])
+		}
+	default:
+		return newVectNode([]Node{args[0], args[1]})
+	}
 }
 
 func cos(v *Vars, args []Node) Node {
@@ -203,7 +224,7 @@ func fmap(v *Vars, args []Node) Node {
 	ret := nv.wait_return()
 
 	nv.del_current_local()
-	return ret
+	return ret.(ListNode)
 }
 
 func gtfloat(v *Vars, args []Node) Node {
@@ -402,6 +423,23 @@ func prodint(v *Vars, args []Node) Node {
 		}
 	}
 	return newInt(p)
+}
+
+func remainder(v *Vars, args []Node) Node {
+	var s1, s2 int64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		s1 = args[0].(NumberNode).Int
+	case token.FLOAT:
+		s1 = round(args[0].(NumberNode).Float)
+	}
+	switch args[1].(NumberNode).NumberType {
+	case token.INT:
+		s2 = args[1].(NumberNode).Int
+	case token.FLOAT:
+		s2 = round(args[1].(NumberNode).Float)
+	}
+	return newInt(s1 % s2)
 }
 
 func sin(v *Vars, args []Node) Node {

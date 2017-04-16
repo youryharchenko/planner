@@ -365,6 +365,8 @@ func Begin() *Env {
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: prodint})
 	name = "let"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: let})
+	name = "remainder"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: remainder})
 	name = "set"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: set})
 	name = "sin"

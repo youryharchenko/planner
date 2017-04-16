@@ -155,7 +155,8 @@ func (node ListNode) Rev() ListNode {
 func (node ListNode) String() string {
 	//s := fmt.Sprint(node.Nodes)
 	//return "(" + s[1:len(s)-1] + ")"
-	rev := node.Rev()
+	//rev := node.Rev()
+	rev := node
 	var pair *PairNode
 	s := "("
 	b := ""
@@ -197,8 +198,12 @@ func (node ListNode) Tail(n int64) ListNode {
 
 	i := int64(0)
 	for pair := node.Head; pair != nil; pair = pair.Second {
+		//log.Println(i, n)
 		if i == n {
 			return ListNode{NodeType: node.NodeType, Head: pair}
+		}
+		if pair.Second == nil {
+			return newListNode()
 		}
 		i++
 	}
@@ -216,7 +221,7 @@ func (node ListNode) Len() int64 {
 	return i
 }
 
-func (node ListNode) Append(n Node) ListNode {
+func (node ListNode) Cons(n Node) ListNode {
 	pair := newPairNode(n, node.Head)
 	node.Head = &pair
 	return node
@@ -372,8 +377,12 @@ func newListNodeFromSlice(content []Node) ListNode {
 	list := newListNode()
 	var pair *PairNode = nil
 
-	for i := len(content); i > 0; i-- {
-		node := newPairNode(content[i-1], pair)
+	//for i := len(content); i > 0; i-- {
+	//	node := newPairNode(content[i-1], pair)
+	//	pair = &node
+	//}
+	for i := 0; i < len(content); i++ {
+		node := newPairNode(content[i], pair)
 		pair = &node
 	}
 	list.Head = pair

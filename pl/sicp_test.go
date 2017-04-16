@@ -126,13 +126,36 @@ func TestSICP(t *testing.T) {
 		Test{"{def z {cons .x .y}}", "[[1 2] [3 4]]"},
 		Test{"{car {car .z}}", "1"},
 		Test{"{car {cdr .z}}", "3"},
+		// GCD
+		Test{gcd_lambda, "lambda"},
+		Test{"{gcd 206 40}", "2"},
+		// RAT
 		Test{rat_operations, "lambda"},
 		Test{"{def one-half {make-rat 1 2}}", "[1 2]"},
 		Test{":one-half", "[1 2]"},
 		Test{"{def one-third {make-rat 1 3}}", "[1 3]"},
 		Test{"{add-rat :one-half :one-third}", "[5 6]"},
 		Test{"{mul-rat :one-half :one-third}", "[1 6]"},
-		Test{"{add-rat :one-third :one-third}", "[6 9]"},
+		Test{"{add-rat :one-third :one-third}", "[2 3]"},
+		// cons-p
+		Test{cons_p_lambda, "lambda"},
+		Test{"{cons-p 1 2}", "lambda"},
+		Test{"{def x {cons-p 1 2}}", "lambda"},
+		Test{"{car-p .x}", "1"},
+		Test{"{cdr-p .x}", "2"},
+		Test{"{def y {cons-p 3 4}}", "lambda"},
+		Test{"{def z {cons-p .x .y}}", "lambda"},
+		Test{"{car-p {car-p .z}}", "1"},
+		Test{"{car-p {cdr-p .z}}", "3"},
+		// List
+		Test{"{def one-through-four {cons 1 {cons 2 {cons 3 {cons 4 ()}}}}}", "(1 2 3 4)"},
+		Test{"{car .one-through-four}", "1"},
+		Test{"{cdr .one-through-four}", "(2 3 4)"},
+		Test{"{car {cdr .one-through-four}}", "2"},
+		Test{list_ref_lambda, "lambda"},
+		Test{"{list-ref (1 4 9 16 25) 3}", "16"},
+		Test{length_lambda, "lambda"},
+		Test{"{length (1 3 5 7)}", "4"},
 		//Test{"", ""},
 
 	}
@@ -369,8 +392,26 @@ var integral_lambda = `
 	}
 }
 `
+var gcd_lambda = `
+{def gcd
+	{lambda [a b]
+		{if {eq$int .b 0}
+			.a
+			{gcd .b {remainder .a .b}}
+		}
+	}
+}
+`
+
 var rat_operations = `
-{def make-rat {lambda [n d] {cons .n .d}}}
+{def make-rat-x {lambda [n d] {cons .n .d}}}
+{def make-rat
+ 	{lambda [n d]
+		{let [[g {gcd .n .d}]]
+			{cons {div$int .n .g} {div$int .d .g}}
+		}
+	}
+}
 {def numer {lambda [x] {car .x}}}
 {def denom {lambda [x] {cdr .x}}}
 {def add-rat
@@ -411,6 +452,47 @@ var rat_operations = `
 	{lambda [x y]
     {eq$int {prod$int {numer .x} {denom .y}}
     	{prod$int {numer .y} {denom .x}}
+		}
+	}
+}
+`
+
+var cons_p_lambda = `
+{def cons-p
+	{lambda [x y]
+  	{def dispatch
+			{lambda [m]
+				{cond
+					[{eq$int .m 0} .x]
+    			[{eq$int .m 1} .y]
+    			[else {print "Argument not 0 or 1 - CONS"}]
+				}
+			}
+		}
+  	.dispatch
+	}
+}
+{def car-p {lambda [z] {.z 0}}}
+{def cdr-p {lambda [z] {.z 1}}}
+`
+
+var list_ref_lambda = `
+{def list-ref
+	{lambda [items n]
+  	{if {eq$int .n 0}
+    	{car .items}
+    	{list-ref {cdr .items} {sub$int .n 1}}
+		}
+	}
+}
+`
+
+var length_lambda = `
+{def length
+	{lambda [items]
+		{if {not .items}
+			0
+			{sum$int 1 {length {cdr .items}}}
 		}
 	}
 }

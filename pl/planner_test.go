@@ -58,6 +58,24 @@ func TestLang(t *testing.T) {
 		Test{"{def cloj {lambda [p] {def fn {lambda [] .p}} {fn}}}", "lambda"},
 		Test{"{cloj Hello}", "Hello"},
 		Test{"{remainder 10 4}", "2"},
+		Test{"(+ - / * % # @ &)", "(+ - / * % # @ &)"},
+		Test{"{map type (+ - / * % # @ & . ,)}", "(Id Id Id Id Id Id Id Id Id Id)"},
+		Test{list_lambda, "lambda"},
+		Test{"{memb & (+ - / * % # @ & . ,)}", "7"},
+		Test{"{head 0 (+ - / * % # @ & . ,)}", "()"},
+		Test{"{head 1 (+ - / * % # @ & . ,)}", "(+)"},
+		Test{"{head 2 (+ - / * % # @ & . ,)}", "(+ -)"},
+		Test{"{head 10 (+ - / * % # @ & . ,)}", "(+ - / * % # @ & . ,)"},
+		Test{"{head 11 (+ - / * % # @ & . ,)}", "(+ - / * % # @ & . ,)"},
+		Test{"{rest 0 (+ - / * % # @ & . ,)}", "(+ - / * % # @ & . ,)"},
+		Test{"{rest 1 (+ - / * % # @ & . ,)}", "(- / * % # @ & . ,)"},
+		Test{"{rest 2 (+ - / * % # @ & . ,)}", "(/ * % # @ & . ,)"},
+		Test{"{rest 9 (+ - / * % # @ & . ,)}", "(,)"},
+		Test{"{rest 10 (+ - / * % # @ & . ,)}", "()"},
+		Test{"{rest 11 (+ - / * % # @ & . ,)}", "()"},
+		Test{length_lambda, "lambda"},
+		Test{poly_lambda, "lambda"},
+		Test{"{trans-poly (X * Y + Z * V * W + U)}", "(+ (* X Y) (+ (* Z (* V W)) U))"},
 		//Test{"", ""},
 	}
 
@@ -71,3 +89,85 @@ func TestLang(t *testing.T) {
 		}
 	}
 }
+
+var list_lambda = `
+{def index
+	{lambda [e items i]
+		{cond
+			[{not .items} ()]
+			[{eq .e {car .items}} .i]
+			[else  {index .e {cdr .items} {sum$int 1 .i}}]
+		}
+	}
+}
+{def beg-slice
+	{lambda [n items new i]
+		{cond
+			[{not .items} .new]
+			[{eq$int .n .i} .new]
+			[else  {beg-slice .n {cdr .items} {cons {car .items} .new} {sum$int 1 .i}}]
+		}
+	}
+}
+{def end-slice
+	{lambda [n items i]
+		{cond
+			[{not .items} ()]
+			[{eq$int .n .i} .items]
+			[else  {end-slice .n {cdr .items} {sum$int 1 .i}}]
+		}
+	}
+}
+{def reverse
+	{lambda [items new i]
+		{cond
+			[{not .items} .new]
+			[else  {reverse {cdr .items} {cons {car .items} .new} {sum$int 1 .i}}]
+		}
+	}
+}
+{def memb
+	{lambda [e items]
+		{index .e .items 0}
+	}
+}
+{def head
+	{lambda [n items]
+		{reverse {beg-slice .n .items () 0} () 0}
+	}
+}
+{def rest
+	{lambda [n items]
+		{end-slice .n .items 0}
+	}
+}
+`
+
+var poly_lambda = `
+{def mono
+	{lambda [m]
+		{cond
+			[{eq$int {length .m} 1} {car .m}]
+			[else (* {car .m} {mono {rest 2 .m}})]
+		}
+	}
+}
+{def poly
+	{lambda [p]
+		{let [[k {memb + .p}]]
+			{cond
+				[{not .k} {mono .p}]
+				[else (+ {mono {head .k .p}} {poly {rest {sum$int .k 1} .p}})]
+			}
+		}
+	}
+}
+{def trans-poly
+	{lambda [l]
+		{cond
+			[{eq$int {length .l} 1} .l]
+			[else {poly .l}]
+		}
+	}
+}
+`

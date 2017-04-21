@@ -2,8 +2,8 @@ package pl
 
 import (
 	"fmt"
-	"log"
 	"testing"
+	"time"
 )
 
 func TestLang(t *testing.T) {
@@ -76,17 +76,25 @@ func TestLang(t *testing.T) {
 		Test{length_lambda, "lambda"},
 		Test{poly_lambda, "lambda"},
 		Test{"{trans-poly (X * Y + Z * V * W + U)}", "(+ (* X Y) (+ (* Z (* V W)) U))"},
+		Test{oper_lambda, "lambda"},
+		// Error
+		Test{"{/ 1 1}", "1"},
+		Test{"{/ 1 0}", "\"divide by 0\""},
+		//Test{"{debug on}", "on"},
+		Test{"{catch {/ 1 0} zerodivide}", "zerodivide"},
+		Test{"{catch {/ 10 5} never}", "2"},
 		//Test{"", ""},
 	}
 
 	env := Begin()
 	for i, test := range tests {
-		log.Println(i, test.text, "->", test.res)
+		//log.Println(i, test.text, "->", test.res)
 		if res := env.Eval(ParseFromString("<STRING>", test.text+"\n")...); res.String() != test.res {
 			t.Error(fmt.Sprintf("#%d: Expected result '%s', got string '%s'", i, test.res, res))
 		} else {
-			fmt.Printf("%v\n", res)
+			//fmt.Printf("%v\n", res)
 		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -167,6 +175,16 @@ var poly_lambda = `
 		{cond
 			[{eq$int {length .l} 1} .l]
 			[else {poly .l}]
+		}
+	}
+}
+`
+var oper_lambda = `
+{def /
+	{lambda [n d]
+		{cond
+			[{eq$int .d 0} {error "divide by 0"}]
+			[else {div$int .n .d}]
 		}
 	}
 }

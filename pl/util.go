@@ -1,6 +1,7 @@
 package pl
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 		next:  v,
 		ret:   make(chan Node),
 		exit:  make(chan Node),
+		err:   make(chan Node),
 		debug: v.debug,
 		//cont: true,
 		lock: sync.RWMutex{},
@@ -38,6 +40,9 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 				nv.lock.Unlock()
 			}
 		}
+	}
+	if v.debug == true {
+		log.Printf("new_current_local: new vars: %v", nv)
 	}
 	return nv
 }
@@ -69,12 +74,13 @@ func (v *Vars) del_current_local() {
 
 func (v *Vars) run_stmt(args []Node) {
 	//env.current.lock.RLock()
-
+	//log.Printf("run_stmt: %v", args)
 	//if env.current.cont && len(args) >= 1 {
 	if len(args) >= 1 {
 		//env.current.lock.RUnlock()
 		if len(args) == 1 {
 			val := args[0].Value(v)
+			//log.Printf("run_stmt: val: %v", val)
 			v.ret <- val
 		} else {
 			go v.run_stmt(args[1:])
@@ -85,25 +91,116 @@ func (v *Vars) run_stmt(args []Node) {
 	}
 }
 
+func (v *Vars) run_catch(expr Node) {
+
+	//v.run_stmt([]Node{expr})
+	if v.debug == true {
+		log.Println("run_catch: expr: ", expr.String())
+	}
+	ret := expr.Value(v)
+	//log.Println("run_catch: ret: ", ret.String())
+	v.ret <- ret
+
+}
+
+func (v *Vars) wait_catch_return(on_err Node) Node {
+	var err, ret Node
+	if v.debug {
+		log.Printf("wait_catch_return: started, deep: %d, ctx: %s", v.deep, v)
+	}
+	for ret == nil {
+	Loop:
+		for {
+			select {
+			case ret = <-v.ret:
+				if v.debug == true {
+					log.Println("wait_catch_return: select ret", ret)
+				}
+				break Loop
+			case ret = <-v.exit:
+				if v.debug == true {
+					log.Println("wait_catch_return: select exit", ret)
+				}
+				break Loop
+			case err = <-v.err:
+				//nv := v.next.new_current_local("catch on_error", newVectNode([]Node{}))
+				//go v.next.run_stmt([]Node{on_err})
+				//ret = nv.wait_return()
+				//nv.del_current_local()
+				if v.debug == true {
+					log.Println("wait_catch_return: select err", err)
+				}
+				ret = on_err.Value(v)
+				if v.debug == true {
+					log.Println("wait_catch_return: ret", ret)
+				}
+				//v.ret <- ret
+				break Loop
+			case <-time.After(time.Second * 10):
+				//ret = newIdentNode("<timeout>")
+				v.lock.RLock()
+				v.err <- newStringNode(fmt.Sprintf("wait_return: select timeout, deep: %d, ctx: %s", v.deep, v.name))
+				v.lock.RUnlock()
+				//v.printTrace()
+				//log.Panicf("wait_return: select timeout, deep: %d, ctx: %s", v.deep, v.name)
+				break Loop
+			}
+		}
+	}
+	if v.debug == true {
+		log.Printf("wait_catch_return: finished, deep: %d, ctx: %s, ret: %v", v.deep, v.name, ret)
+	}
+	return ret
+}
+
 func (v *Vars) wait_return() Node {
-	var ret Node
+	var ret, err Node
+	//log.Printf("wait_return: started, deep: %d, ctx: %s (%v)", v.deep, v.name, v)
 Loop:
 	for {
 		select {
 		case ret = <-v.ret:
-			//log.Println("prog: select ret", ret)
+			if v.debug == true {
+				log.Println("wait_return: select ret", ret)
+			}
 			break Loop
 		case ret = <-v.exit:
-			//log.Println("prog: select exit", ret)
+			if v.debug == true {
+				log.Println("wait_return: select exit", ret)
+			}
 			break Loop
-		case <-time.After(time.Second * 20):
-			ret = newIdentNode("<timeout>")
-			v.printTrace()
-			log.Panicf("wait_return: select timeout, deep: %d, ctx: %s", v.deep, v.name)
+		case err = <-v.err:
+			v.lock.RLock()
+			if v.next != nil {
+				//log.Println(err.String())
+				if v.debug == true {
+					log.Printf("wait_return: transfer error: %s up, from deep: %d, ctx: %s (%v), to deep: %d, ctx: %s", err.String(), v.deep, v.name, v, v.next.deep, v.next.name)
+				}
+				//v.printTrace()
+				v.next.err <- err
+				v.lock.RUnlock()
+			} else {
+				v.lock.RUnlock()
+			}
+			//ret = err
+			break Loop
+		case <-time.After(time.Second * 10):
+			//ret = newIdentNode("<timeout>")
+			v.lock.RLock()
+			v.err <- newStringNode(fmt.Sprintf("wait_return: select timeout, deep: %d, ctx: %s", v.deep, v.name))
+			v.lock.RUnlock()
+			//v.printTrace()
+			//log.Panicf("wait_return: select timeout, deep: %d, ctx: %s", v.deep, v.name)
 			break Loop
 		}
 	}
 	return ret
+}
+
+func (v *Vars) raise_error(err string) {
+	v.lock.RLock()
+	v.err <- newStringNode(err)
+	v.lock.RUnlock()
 }
 
 func (v *Vars) run_cond(args []Node) {
@@ -310,7 +407,7 @@ func applyFunc(f *Func, args []Node, v *Vars) Node {
 	switch f.mode {
 	case BuiltIn:
 		if v.debug {
-			log.Println("applyFunc:BuiltIn", f.Type(), f.mode, f.name, args, v.deep, v.name)
+			log.Println("applyFunc:BuiltIn", f.Type(), f.mode, f.name, args, v.deep, v)
 		}
 		var list []Node
 		if f.class == FSubr {
@@ -325,7 +422,7 @@ func applyFunc(f *Func, args []Node, v *Vars) Node {
 		return f.bi(v, list)
 	case UserDef:
 		if v.debug {
-			log.Println("applyFunc:UserDef", f.Type(), f.mode, f.name, args, v.deep, v.name)
+			log.Println("applyFunc:UserDef", f.Type(), f.mode, f.name, args, v.deep, v)
 		}
 		return f.ud.apply(f.name, args, v)
 	}

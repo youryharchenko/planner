@@ -39,6 +39,22 @@ func car(v *Vars, args []Node) Node {
 
 }
 
+func catch(v *Vars, args []Node) Node {
+
+	nv := v.new_current_local("catch", newVectNode([]Node{}))
+
+	go nv.run_catch(args[0])
+
+	ret := nv.wait_catch_return(args[1])
+
+	nv.del_current_local()
+
+	if v.debug {
+		log.Printf("BIF>> catch: ret: %v", ret)
+	}
+	return ret
+}
+
 func cdr(v *Vars, args []Node) Node {
 	switch args[0].Type() {
 	case NodeList:
@@ -57,6 +73,9 @@ func cond(v *Vars, args []Node) Node {
 	ret := nv.wait_return()
 
 	nv.del_current_local()
+	if v.debug {
+		log.Printf("BIF>> cond: ret: %v", ret)
+	}
 	return ret
 }
 
@@ -86,9 +105,9 @@ func cos(v *Vars, args []Node) Node {
 
 func debug_(v *Vars, args []Node) Node {
 	if args[0].String() == "()" {
-		v.debug = false
+		v.next.debug = false
 	} else {
-		v.debug = true
+		v.next.debug = true
 	}
 	return args[0]
 }
@@ -96,10 +115,12 @@ func debug_(v *Vars, args []Node) Node {
 func def(v *Vars, args []Node) Node {
 	ident := args[0].(IdentNode)
 	ret := args[1].Value(v)
-
-	v.lock.Lock()
-	v.ctx[ident] = makeVar(&ret)
-	v.lock.Unlock()
+	if v.debug == true {
+		log.Printf("BIF>> def: ident: %s, value: %s, ctx: %v,", ident.String(), ret.String(), v)
+	}
+	v.next.lock.Lock()
+	v.next.ctx[ident] = makeVar(&ret)
+	v.next.lock.Unlock()
 	return ret
 }
 
@@ -171,6 +192,14 @@ func eqint(v *Vars, args []Node) Node {
 	} else {
 		return newListNode()
 	}
+}
+
+func error(v *Vars, args []Node) Node {
+	err := newStringNode(args[0].String())
+	v.lock.RLock()
+	v.err <- err
+	v.lock.RUnlock()
+	return err
 }
 
 func eval(v *Vars, args []Node) Node {

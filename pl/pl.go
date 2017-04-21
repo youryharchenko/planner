@@ -38,6 +38,7 @@ type Vars struct {
 	ctx  map[IdentNode]chan Node
 	ret  chan Node
 	exit chan Node
+	err  chan Node
 	//cont bool
 	next *Vars
 
@@ -69,13 +70,13 @@ func (v *Vars) printTrace() {
 }
 
 func (v *Vars) String() string {
-	s := "\n"
+	s := fmt.Sprintf("name: %s, debug: %v, vars: [", v.name, v.debug)
 	for k, v := range v.ctx {
 		n := <-v
 		v <- n
-		s += k.String() + ": " + n.String() + "\n"
+		s += k.String() + ": " + n.String() + ","
 	}
-	return s
+	return s + "]"
 }
 
 type Env struct {
@@ -261,13 +262,14 @@ func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 	}
 	//log.Println(name, vars, v.deep, v.name)
 	//nv := fn.vars.new_current_local(name, vars)
+	fnv := v.new_current_local(name+"-def", newVectNode([]Node{})).merge(fn.vars)
+	//log.Println(fnv)
+	go fnv.wait_return()
 
-	nv := v.new_current_local(name, newVectNode([]Node{})).
-		merge(fn.vars).
-		new_current_local(name, vars)
+	nv := fnv.new_current_local(name+"-run", vars)
 
 	if v.debug {
-		v.printTrace()
+		//v.printTrace()
 		//log.Println("=============")
 		//fn.vars.printTrace()
 	}
@@ -302,7 +304,16 @@ func (node PairNode) Value(v *Vars) Node {
 
 func Begin() *Env {
 	var name string
-	global := Vars{name: "global", deep: 0, ctx: map[IdentNode]chan Node{}, next: nil, debug: false}
+	global := Vars{
+		name:  "global",
+		deep:  0,
+		ctx:   map[IdentNode]chan Node{},
+		err:   make(chan Node),
+		ret:   make(chan Node),
+		exit:  make(chan Node),
+		next:  nil,
+		debug: false,
+	}
 	//local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
 	name = "abs$float"
@@ -311,6 +322,8 @@ func Begin() *Env {
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: and})
 	name = "car"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: car})
+	name = "catch"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: catch})
 	name = "cdr"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cdr})
 	name = "cond"
@@ -331,6 +344,8 @@ func Begin() *Env {
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eq})
 	name = "eq$int"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eqint})
+	name = "error"
+	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: error})
 	name = "eval"
 	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eval})
 	name = "exit"
@@ -394,9 +409,60 @@ func Begin() *Env {
 
 func (env *Env) Eval(args ...Node) Node {
 	var ret Node
-	for _, expr := range args {
-		ret = expr.Value(env.globalVars)
+	//env.globalVars.debug = true
+
+	nv := env.globalVars.new_current_local("global eval", newVectNode([]Node{}))
+	//go nv.wait_error()
+	go nv.run_stmt(args)
+	ret = nv.wait_error_return()
+
+	//nv.err <- newStringNode("ok")
+	nv.del_current_local()
+
+	//for _, expr := range args {
+	//	ret = expr.Value(env.globalVars)
+	//}
+	if ret == nil {
+		return newStringNode("return is nil")
+	} else {
+		return ret
 	}
+}
+
+func (v *Vars) wait_error_return() Node {
+	var ret, err Node
+	ret = nil
+	for ret == nil {
+	Loop:
+		for {
+			select {
+			case err = <-v.err:
+				if v.debug == true {
+					log.Println("wait_error_return: select err", err)
+				}
+				//log.Panicf("wait_error>> error: %s", err.String())
+				ret = err
+				break Loop
+			case ret = <-v.ret:
+				if v.debug == true {
+					log.Println("wait_error_return: select ret", ret)
+				}
+				break Loop
+			case ret = <-v.exit:
+				if v.debug == true {
+					log.Println("wait_error_return: select exit", ret)
+				}
+				break Loop
+			case <-time.After(time.Second * 20):
+				//v.printTrace()
+				log.Panicf("wait_error: select timeout, deep: %d, ctx: %s", v.deep, v.name)
+				break Loop
+			}
+		}
+	}
+	//if ret == nil {
+	//	goto Loop
+	//}
 	return ret
 }
 

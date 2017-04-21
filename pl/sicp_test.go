@@ -2,7 +2,6 @@ package pl
 
 import (
 	"fmt"
-	"log"
 	"testing"
 )
 
@@ -162,11 +161,11 @@ func TestSICP(t *testing.T) {
 
 	env := Begin()
 	for i, test := range tests {
-		log.Println(i, test.text, "->", test.res)
+		//log.Println(i, test.text, "->", test.res)
 		if res := env.Eval(ParseFromString("<STRING>", test.text+"\n")...); res.String() != test.res {
 			t.Error(fmt.Sprintf("#%d: Expected result '%s', got string '%s'", i, test.res, res))
 		} else {
-			fmt.Printf("%v\n", res)
+			//fmt.Printf("%v\n", res)
 		}
 	}
 }

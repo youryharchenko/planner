@@ -118,9 +118,10 @@ func def(v *Vars, args []Node) Node {
 	if v.debug == true {
 		log.Printf("BIF>> def: ident: %s, value: %s, ctx: %v,", ident.String(), ret.String(), v)
 	}
-	v.next.lock.Lock()
-	v.next.ctx[ident] = makeVar(&ret)
-	v.next.lock.Unlock()
+	//v.next.lock.Lock()
+	//v.next.ctx[ident] = makeVar(&ret)
+	//v.next.lock.Unlock()
+	v.next.set_var_chan(ident, makeVar(&ret))
 	return ret
 }
 
@@ -300,6 +301,10 @@ func gtint(v *Vars, args []Node) Node {
 	}
 }
 
+func getjson(v *Vars, args []Node) Node {
+	return newObjNode(args[0].(StringNode))
+}
+
 func lambda(v *Vars, args []Node) Node {
 	return makeLambda("lambda", v, args[0], args[1:])
 }
@@ -412,8 +417,12 @@ func set(v *Vars, args []Node) Node {
 
 	for {
 		//vars.lock.RLock()
-		if _, ok := vars.ctx[word]; ok {
-			vars.ctx[word] <- args[1]
+		//if _, ok := vars.ctx[word]; ok {
+		//	vars.ctx[word] <- args[1]
+		//	return args[1]
+		//}
+		if ch := vars.get_var_chan(word); ch != nil {
+			ch <- args[1]
 			return args[1]
 		}
 		if vars.next == nil {

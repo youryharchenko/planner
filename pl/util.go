@@ -13,7 +13,7 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 	nv := &Vars{
 		name:  name,
 		deep:  v.deep + 1,
-		ctx:   map[IdentNode]chan Node{},
+		vars:  map[IdentNode]chan Node{},
 		next:  v,
 		ret:   make(chan Node),
 		exit:  make(chan Node),
@@ -28,16 +28,17 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 	for _, elm := range vars.Nodes {
 		switch elm.(type) {
 		case IdentNode:
-			nv.lock.Lock()
-			nv.ctx[elm.(IdentNode)] = makeVar(nil) //make(chan Node, 1)
-			nv.lock.Unlock()
+			nv.set_var_chan(elm.(IdentNode), makeVar(nil))
+			//nv.lock.Lock()
+			//nv.ctx[elm.(IdentNode)] = makeVar(nil) //make(chan Node, 1)
+			//nv.lock.Unlock()
 		case VectorNode:
 			if llist := elm.(VectorNode); len(llist.Nodes) == 2 {
 				word := llist.Nodes[0].(IdentNode)
-
-				nv.lock.Lock()
-				nv.ctx[word] = makeVar(&llist.Nodes[1])
-				nv.lock.Unlock()
+				nv.set_var_chan(word, makeVar(&llist.Nodes[1]))
+				//nv.lock.Lock()
+				//nv.ctx[word] = makeVar(&llist.Nodes[1])
+				//nv.lock.Unlock()
 			}
 		}
 	}
@@ -55,10 +56,11 @@ func (v *Vars) merge(a *Vars) *Vars {
 			cv.lock.RUnlock()
 			break
 		}
-		for key, val := range cv.ctx {
-			v.lock.Lock()
-			v.ctx[key] = val
-			v.lock.Unlock()
+		for key, val := range cv.vars {
+			v.set_var_chan(key, val)
+			//v.lock.Lock()
+			//v.ctx[key] = val
+			//v.lock.Unlock()
 		}
 		cv.lock.RUnlock()
 		cv = cv.next
@@ -320,6 +322,23 @@ func (v *Vars) run_map(f *Func, new_list ListNode, list ListNode) {
 	}
 }
 
+func (v *Vars) get_var_chan(key IdentNode) chan Node {
+	v.lock.RLock()
+	if ch, ok := v.vars[key]; ok {
+		v.lock.RUnlock()
+		return ch
+	} else {
+		v.lock.RUnlock()
+		return nil
+	}
+}
+
+func (v *Vars) set_var_chan(key IdentNode, val chan Node) {
+	v.lock.Lock()
+	v.vars[key] = val
+	v.lock.Unlock()
+}
+
 func findFunc(word IdentNode, v *Vars) *Func {
 
 	for i := 0; i < 3; i++ {
@@ -330,41 +349,38 @@ func findFunc(word IdentNode, v *Vars) *Func {
 		//var f Func
 
 		for {
-			v.lock.RLock()
-			if ch, ok := vars.ctx[word]; ok {
-				v.lock.RUnlock()
-				if ch != nil {
+			//v.lock.RLock()
+			if ch := vars.get_var_chan(word); ch != nil {
+				//v.lock.RUnlock()
+				//if ch != nil {
 
-					var val Node
-					select {
-					case val = <-ch:
-						ch <- val
-					case <-time.After(time.Second * 5):
-						log.Panicf("find function timeout: %s, deep: %d, ctx: %s", word.String(), v.deep, v.name)
-					}
-
-					//log.Println("Function found", word, val)
-
-					switch val.Type() {
-					case NodeFunc:
-						f := val.(Func)
-						return &f
-					case NodeIdent:
-						if pf := findFunc(val.(IdentNode), v); pf != nil {
-							return pf
-						} else {
-							return nil
-						}
-					default:
-						log.Panicf("findFunc>> unexpected type, name:%s, type: %s, value: %s", word.String(), type_(v, []Node{val}), val.String())
-					}
-					// goto Apply
-				} else {
-					log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
+				var val Node
+				select {
+				case val = <-ch:
+					ch <- val
+				case <-time.After(time.Second * 5):
+					log.Panicf("find function timeout: %s, deep: %d, ctx: %s", word.String(), v.deep, v.name)
 				}
-			} else {
-				v.lock.RUnlock()
-			}
+
+				//log.Println("Function found", word, val)
+
+				switch val.Type() {
+				case NodeFunc:
+					f := val.(Func)
+					return &f
+				case NodeIdent:
+					if pf := findFunc(val.(IdentNode), v); pf != nil {
+						return pf
+					} else {
+						return nil
+					}
+				default:
+					log.Panicf("findFunc>> unexpected type, name:%s, type: %s, value: %s", word.String(), type_(v, []Node{val}), val.String())
+				}
+				// goto Apply
+			} //else {
+			//log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
+			//}
 
 			if vars.next == nil {
 				//vars.lock.RUnlock()

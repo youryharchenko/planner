@@ -35,7 +35,7 @@ const (
 type Vars struct {
 	name string
 	deep int64
-	ctx  map[IdentNode]chan Node
+	vars map[IdentNode]chan Node
 	ret  chan Node
 	exit chan Node
 	err  chan Node
@@ -71,11 +71,13 @@ func (v *Vars) printTrace() {
 
 func (v *Vars) String() string {
 	s := fmt.Sprintf("name: %s, debug: %v, vars: [", v.name, v.debug)
-	for k, v := range v.ctx {
+	v.lock.RLock()
+	for k, v := range v.vars {
 		n := <-v
 		v <- n
 		s += k.String() + ": " + n.String() + ","
 	}
+	v.lock.RUnlock()
 	return s + "]"
 }
 
@@ -111,28 +113,25 @@ func (expr RefNode) Value(v *Vars) Node {
 		for i := 0; i < 3; i++ {
 			vars := v
 			for {
-				//vars.lock.RLock()
-				if ch, ok := vars.ctx[expr.ref]; ok {
-					if ch != nil {
-						var val Node
-						select {
-						case val = <-ch:
-							//log.Println("Ref Value:", expr.ref, val)
-							ch <- val
-							return val
-						case <-time.After(time.Second * 5):
-							//log.Println("Ref Value timeout", expr.ref)
-							//return newIdentNode("<timeout>")
-							//log.Panicln("ref value timeout", expr.ref)
-							log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
-						}
-					} else {
-						//fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
-						//return newIdentNode("<unassigned>")
-						//log.Panicf("Variable %s <unassigned>", expr.ref.String())
-						log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
+				if ch := vars.get_var_chan(expr.ref); ch != nil {
+					var val Node
+					select {
+					case val = <-ch:
+						//log.Println("Ref Value:", expr.ref, val)
+						ch <- val
+						return val
+					case <-time.After(time.Second * 5):
+						//log.Println("Ref Value timeout", expr.ref)
+						//return newIdentNode("<timeout>")
+						//log.Panicln("ref value timeout", expr.ref)
+						log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 					}
-				}
+				} //else {
+				//fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
+				//return newIdentNode("<unassigned>")
+				//log.Panicf("Variable %s <unassigned>", expr.ref.String())
+				//log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
+				//}
 
 				if vars.next == nil {
 					break
@@ -149,30 +148,24 @@ func (expr RefNode) Value(v *Vars) Node {
 			time.Sleep(time.Millisecond * 1)
 			log.Printf("warning, wait variable %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 		}
-		log.Panicf("variable %s <unbound>, deep: %d, ctx: %s(%v)", expr.ref.String(), v.deep, v.name, v.ctx)
+		log.Panicf("variable %s <unbound>, deep: %d, ctx: %s(%v)", expr.ref.String(), v.deep, v.name, v.vars)
 	case GlobalValue:
 		globalVars := v.findGlobal()
-		globalVars.lock.RLock()
-		defer globalVars.lock.RUnlock()
-		if ch, ok := globalVars.ctx[expr.ref]; ok {
-			if ch != nil {
-				var val Node
-				select {
-				case val = <-ch:
-					//log.Println("Ref Value:", expr.ref, val)
-					ch <- val
-					return val
-				case <-time.After(time.Second * 5):
-					//log.Println("Ref Value timeout", expr.ref)
-					//return newIdentNode("<timeout>")
-					//log.Panicln("Ref Value timeout", expr.ref)
-					log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
-				}
-			} else {
-				//fmt.Println(fmt.Sprintf("Variable %s <unassigned>", expr.ref.String()))
-				//return newIdentNode("<unassigned>")
-				//log.Panicf("Variable %s <unassigned>", expr.ref.String())
-				log.Panicf("variable %s <unassigned>, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
+		//globalVars.lock.RLock()
+		//defer globalVars.lock.RUnlock()
+		//if ch, ok := globalVars.ctx[expr.ref]; ok {
+		if ch := globalVars.get_var_chan(expr.ref); ch != nil {
+			var val Node
+			select {
+			case val = <-ch:
+				//log.Println("Ref Value:", expr.ref, val)
+				ch <- val
+				return val
+			case <-time.After(time.Second * 5):
+				//log.Println("Ref Value timeout", expr.ref)
+				//return newIdentNode("<timeout>")
+				//log.Panicln("Ref Value timeout", expr.ref)
+				log.Panicf("ref value timeout: %s, deep: %d, ctx: %s", expr.ref.String(), v.deep, v.name)
 			}
 		} else {
 			//fmt.Println(fmt.Sprintf("Variable %s <unbound>", expr.ref.String()))
@@ -307,7 +300,7 @@ func Begin() *Env {
 	global := Vars{
 		name:  "global",
 		deep:  0,
-		ctx:   map[IdentNode]chan Node{},
+		vars:  map[IdentNode]chan Node{},
 		err:   make(chan Node),
 		ret:   make(chan Node),
 		exit:  make(chan Node),
@@ -317,85 +310,87 @@ func Begin() *Env {
 	//local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
 	name = "abs$float"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: absfloat})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: absfloat}))
 	name = "and"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: and})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: and}))
 	name = "car"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: car})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: car}))
 	name = "catch"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: catch})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: catch}))
 	name = "cdr"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cdr})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cdr}))
 	name = "cond"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: cond})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: cond}))
 	name = "cons"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cons})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cons}))
 	name = "cos"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cos})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: cos}))
 	name = "debug"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: debug_})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: debug_}))
 	name = "def"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: def})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: def}))
 	name = "div$float"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: divfloat})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: divfloat}))
 	name = "div$int"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: divint})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: divint}))
 	name = "eq"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eq})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eq}))
 	name = "eq$int"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eqint})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eqint}))
 	name = "error"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: error})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: error}))
 	name = "eval"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eval})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eval}))
 	name = "exit"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: exit})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: exit}))
 	name = "fold"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: fold})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: fold}))
 	name = "gt$float"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: gtfloat})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: gtfloat}))
 	name = "gt$int"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: gtint})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: gtint}))
+	name = "get$json"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: getjson}))
 	name = "lambda"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: lambda})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: lambda}))
 	name = "lt$float"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: ltfloat})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: ltfloat}))
 	name = "lt$int"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: ltint})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: ltint}))
 	name = "map"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: fmap})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: fmap}))
 	name = "neq"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: neq})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: neq}))
 	name = "not"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: not})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: not}))
 	name = "or"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: or})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: or}))
 	name = "quote"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: quote})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: quote}))
 	name = "print"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: print})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: print}))
 	name = "prod$float"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: prodfloat})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: prodfloat}))
 	name = "prod$int"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: prodint})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: prodint}))
 	name = "let"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: let})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: let}))
 	name = "remainder"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: remainder})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: remainder}))
 	name = "set"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: set})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: set}))
 	name = "sin"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: sin})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: sin}))
 	name = "sub$float"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: subfloat})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: subfloat}))
 	name = "sub$int"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: subint})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: subint}))
 	name = "sum$float"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: sumfloat})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: sumfloat}))
 	name = "sum$int"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: sumint})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: sumint}))
 	name = "type"
-	global.ctx[newIdentNode(name)] = makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: type_})
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: type_}))
 
 	env := &Env{
 		globalVars: &global,

@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"log"
 	"strconv"
+	"strings"
 )
 
 type Node interface {
@@ -37,6 +38,7 @@ const (
 	NodeRef
 	NodeFunc
 	NodePair
+	NodeObj
 )
 
 type IdentNode struct {
@@ -72,6 +74,7 @@ func (node StringNode) Copy() Node {
 }
 
 func (node StringNode) String() string {
+	//return "\"" + node.Val + "\""
 	return node.Val
 }
 
@@ -115,7 +118,14 @@ func (node VectorNode) Copy() Node {
 }
 
 func (node VectorNode) String() string {
-	return fmt.Sprint(node.Nodes)
+
+	s := "["
+	b := ""
+	for _, n := range node.Nodes {
+		s += b + n.String()
+		b = " "
+	}
+	return s + "]"
 }
 
 func (node VectorNode) Value(v *Vars) Node {
@@ -333,7 +343,7 @@ func newIdentNode(name string) IdentNode {
 }
 
 func newStringNode(val string) StringNode {
-	return StringNode{NodeType: NodeString, Val: val}
+	return StringNode{NodeType: NodeString, Val: strings.Replace(val, "\\\"", "\"", -1)}
 }
 
 func newIntNode(val string) NumberNode {

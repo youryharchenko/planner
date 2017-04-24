@@ -9,12 +9,12 @@ import (
 func main() {
 
 	src9 := `
-	{prog
-			(a b c)
+	{let
+			[a b c]
 			{set c {sum$int 1 .b}}
 			{set b {sum$int 1 .a}}
 			{set a 1}
-			{exit .c}
+			{print (.a + .b = .c)}
 	}
 	`
 	log.Println("Prog SourceStream():", pl.Begin().Eval(pl.ParseFromString("<STRING>", src9)...))

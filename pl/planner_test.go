@@ -83,6 +83,17 @@ func TestLang(t *testing.T) {
 		//Test{"{debug on}", "on"},
 		Test{"{catch {/ 1 0} zerodivide}", "zerodivide"},
 		Test{"{catch {/ 10 5} never}", "2"},
+		// ete
+		Test{"{ete {quote .x} a}", "x"},
+		Test{"{ete x {quote .a}}", ".x"},
+		Test{"{ete x y}", "x"},
+		Test{"{ete {quote .x} {quote :a}}", ":x"},
+		Test{"{ete [a b] {quote {x}}}", "{a b}"},
+		Test{"{ete [a b] ()}", "(a b)"},
+		Test{"{ete (a b) {quote {x}}}", "{a b}"},
+		Test{"{ete (a b) []}", "[a b]"},
+		Test{"{ete {quote {x y}} ()}", "(x y)"},
+		Test{"{ete {quote {x y}} []}", "[x y]"},
 		//Test{"", ""},
 	}
 

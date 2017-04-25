@@ -191,7 +191,7 @@ func (node ListNode) Value(v *Vars) Node {
 	return list
 }
 
-func (node ListNode) Nodes(n int64) Node {
+func (node ListNode) Node(n int64) Node {
 
 	i := int64(0)
 	for pair := node.Head; pair != nil; pair = pair.Second {
@@ -202,6 +202,16 @@ func (node ListNode) Nodes(n int64) Node {
 	}
 	log.Panicf("ListNodes>>Nodes: out of range: %d", i)
 	return node
+}
+
+func (node ListNode) Nodes() []Node {
+	nodes := make([]Node, node.Len())
+	i := int64(0)
+	for pair := node.Head; pair != nil; pair = pair.Second {
+		nodes[i] = pair.First
+		i++
+	}
+	return nodes
 }
 
 func (node ListNode) Tail(n int64) ListNode {

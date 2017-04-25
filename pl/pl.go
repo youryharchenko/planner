@@ -339,6 +339,8 @@ func Begin() *Env {
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eqint}))
 	name = "error"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: error}))
+	name = "ete"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: ete}))
 	name = "eval"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: eval}))
 	name = "exit"

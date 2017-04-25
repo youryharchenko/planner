@@ -1,0 +1,41 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; LISP Evaluator
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+{def index
+  {lambda [e items i]
+    {cond
+      [{not .items} ()]
+      [{eq .e {car .items}} .i]
+      [else  {index .e {cdr .items} {sum$int 1 .i}}]}}}
+
+{def memb
+  {lambda [e items]
+    {index .e .items 0}}}
+
+{def atom?
+  {lambda [e]
+    {memb {type .e} (Id Num)}}}
+
+{def comp-lisp
+  {lambda [l]
+    {cond
+      [{atom? .l} {comp-atom .l}]
+      [.l {comp-list .l}]
+      [else .l]}}}
+
+{def comp-atom
+  {lambda [a]
+    {cond
+      [{eq Num {type .a}} .a]
+      [{eq T .a} T]
+      [{eq nil .a} ()]
+      [else {ete .a {quote .x}}]}}}
+
+{def comp-list
+  {lambda [l]
+    {let [[h {car .l}] [t {cdr .l}]]
+      {cond
+        [{eq .h quote} {car .t}]
+        [{eq .h car} {ete () {quote {x}}}]}}}}

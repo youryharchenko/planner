@@ -203,6 +203,63 @@ func error(v *Vars, args []Node) Node {
 	return err
 }
 
+func ete(v *Vars, args []Node) Node {
+	var pref string
+	var ref RefNode
+
+	switch args[0].Type() {
+	case NodeIdent:
+		if args[1].Type() == NodeRef {
+			ref = args[1].(RefNode)
+			pref = RefTypeString[ref.mode]
+
+			return newRefNode(pref + args[0].String())
+		} else {
+			return args[0]
+		}
+	case NodeRef:
+		if args[1].Type() == NodeRef {
+			ref = args[1].(RefNode)
+			pref = RefTypeString[ref.mode]
+
+			return newRefNode(pref + args[0].(RefNode).ref.String())
+		} else {
+			return args[0].(RefNode).ref
+		}
+	case NodeList:
+		list := args[0].(ListNode)
+		switch args[1].Type() {
+		case NodeVector:
+			return newVectNode(list.Nodes())
+		case NodeCall:
+			return newCallNode(list.Nodes())
+		default:
+			return list
+		}
+	case NodeVector:
+		vect := args[0].(VectorNode)
+		switch args[1].Type() {
+		case NodeList:
+			return newListNodeFromSlice(vect.Nodes).Rev()
+		case NodeCall:
+			return newCallNode(vect.Nodes)
+		default:
+			return vect
+		}
+	case NodeCall:
+		call := args[0].(CallNode)
+		switch args[1].Type() {
+		case NodeList:
+			return newListNodeFromSlice(append([]Node{call.Callee}, call.Args...)).Rev()
+		case NodeVector:
+			return newVectNode(append([]Node{call.Callee}, call.Args...))
+		default:
+			return call
+		}
+	}
+	return nil
+}
+
 func eval(v *Vars, args []Node) Node {
 	//log.Println(args[0])
 	return args[0].Value(v)

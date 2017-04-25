@@ -295,7 +295,7 @@ func (v *Vars) run_fold(f *Func, val Node, list ListNode) {
 
 	//if env.current.cont && len(list) >= 1 {
 	if list.Len() >= 1 {
-		newVal := applyFunc(f, []Node{val, list.Nodes(0)}, v)
+		newVal := applyFunc(f, []Node{val, list.Node(0)}, v)
 		if list.Len() == 1 {
 			v.ret <- newVal
 		} else {
@@ -313,7 +313,7 @@ func (v *Vars) run_map(f *Func, new_list ListNode, list ListNode) {
 	//log.Println(list.String(), new_list.String())
 	if list.Len() >= 1 {
 		//new_list = append(new_list, applyFunc(f, []Node{list[0]}, v))
-		new_list = new_list.Cons(applyFunc(f, []Node{list.Nodes(0)}, v))
+		new_list = new_list.Cons(applyFunc(f, []Node{list.Node(0)}, v))
 		if list.Len() == 1 {
 			v.ret <- new_list.Rev()
 		} else {

@@ -74,6 +74,129 @@ func (v *Vars) del_current_local() {
 	//env.lock.Unlock()
 }
 
+func (v *Vars) is_bound(id IdentNode) bool {
+	vars := v
+	for {
+		if ch := vars.get_var_chan(id); ch != nil {
+			return true
+		}
+		if vars.next == nil {
+			return false
+		}
+		nvars := vars.next
+		vars = nvars
+	}
+}
+
+func (v *Vars) is_assigned(id IdentNode) bool {
+	vars := v
+	for {
+		if ch := vars.get_var_chan(id); ch != nil {
+			if len(ch) > 0 {
+				return true
+			} else {
+				return false
+			}
+		}
+		if vars.next == nil {
+			log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", id.String(), v.deep, v.name)
+			return false
+		}
+		nvars := vars.next
+		vars = nvars
+	}
+}
+
+func (v *Vars) assign(id IdentNode, val Node) Node {
+	vars := v
+	for {
+		if ch := vars.get_var_chan(id); ch != nil {
+			ch <- val
+			return val
+		}
+		if vars.next == nil {
+			log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", id.String(), v.deep, v.name)
+			return newIdentNode("<unbound>")
+		}
+		nvars := vars.next
+		vars = nvars
+	}
+}
+
+func (v *Vars) reassign(id IdentNode, val Node) Node {
+	vars := v
+	for {
+		if ch := vars.get_var_chan(id); ch != nil {
+			if len(ch) > 0 {
+				<-ch
+			}
+			ch <- val
+			return val
+		}
+		if vars.next == nil {
+			log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", id.String(), v.deep, v.name)
+			return newIdentNode("<unbound>")
+		}
+		nvars := vars.next
+		vars = nvars
+	}
+}
+
+func (v *Vars) run_is(pat Node, expr Node) bool {
+
+	switch pat.Type() {
+	case NodeNumber:
+		if pat.Type() == expr.Type() && pat.String() == expr.String() {
+			return true
+		} else {
+			return false
+		}
+	case NodeIdent:
+		ident := pat.(IdentNode)
+		sident := ident.String()
+
+		if sident[0] == '*' {
+			vident := newIdentNode(sident[1:])
+			v.reassign(vident, expr)
+			return true
+		} else {
+			if pat.Type() == expr.Type() && pat.String() == expr.String() {
+				return true
+			} else {
+				return false
+			}
+		}
+	case NodeCall:
+		val := pat.Value(v)
+		if val.Type() == expr.Type() && val.String() == expr.String() {
+			return true
+		} else {
+			return false
+		}
+	case NodeRef:
+		ref := pat.(RefNode)
+
+		if v.is_assigned(ref.ref) {
+			val := pat.Value(v)
+			if val.Type() == expr.Type() && val.String() == expr.String() {
+				return true
+			} else {
+				return false
+			}
+		} else {
+			v.assign(ref.ref, expr)
+			return true
+		}
+	case NodeList, NodeVector:
+		if pat.Type() == expr.Type() && pat.String() == expr.String() {
+			return true
+		} else {
+			return false
+		}
+	}
+	return false
+}
+
 func (v *Vars) run_stmt(args []Node) {
 	//env.current.lock.RLock()
 	//log.Printf("run_stmt: %v", args)

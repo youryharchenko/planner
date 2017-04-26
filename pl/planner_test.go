@@ -94,6 +94,17 @@ func TestLang(t *testing.T) {
 		Test{"{ete (a b) []}", "[a b]"},
 		Test{"{ete {quote {x y}} ()}", "(x y)"},
 		Test{"{ete {quote {x y}} []}", "[x y]"},
+		// is
+		Test{"{is a a}", "T"},
+		Test{"{is a 1}", "()"},
+		Test{"{is 10.000001 10.000001}", "T"},
+		Test{"{is 5 {sum$int 2 3}}", "T"},
+		Test{"{is {car (2 3)} 2}", "T"},
+		Test{"{let [[x (A B)]] {is .x (A B)}}", "T"},
+		Test{"{let [[a 12]] {is .a 20}}", "()"},
+		Test{"{let [x] {is .x (A + B)} .x}", "(A + B)"},
+		Test{"{let [[x (A - B)]] {is .x (A + B)} .x}", "(A - B)"},
+		Test{"{let [[x (A - B)]] {is *x (A + B)} .x}", "(A + B)"},
 		//Test{"", ""},
 	}
 

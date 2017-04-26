@@ -362,6 +362,20 @@ func getjson(v *Vars, args []Node) Node {
 	return newObjNode(args[0].(StringNode))
 }
 
+func is(v *Vars, args []Node) Node {
+	f := newListNode()
+	t := newIdentNode("T")
+
+	pat := args[0]
+	expr := args[1].Value(v)
+
+	if v.run_is(pat, expr) {
+		return t
+	} else {
+		return f
+	}
+}
+
 func lambda(v *Vars, args []Node) Node {
 	return makeLambda("lambda", v, args[0], args[1:])
 }
@@ -468,29 +482,30 @@ func quote(v *Vars, args []Node) Node {
 func set(v *Vars, args []Node) Node {
 	word := args[0].(IdentNode)
 
+	return v.assign(word, args[1])
 	//env.lock.RLock()
-	vars := v
+	//vars := v
 	//env.lock.RUnlock()
 
-	for {
-		//vars.lock.RLock()
-		//if _, ok := vars.ctx[word]; ok {
-		//	vars.ctx[word] <- args[1]
-		//	return args[1]
-		//}
-		if ch := vars.get_var_chan(word); ch != nil {
-			ch <- args[1]
-			return args[1]
-		}
-		if vars.next == nil {
-			//fmt.Println(fmt.Sprintf("Variable %s <unbound>", word.String()))
-			log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
-			return newIdentNode("<unbound>")
-		}
-		nvars := vars.next
-		//vars.lock.Unlock()
-		vars = nvars
-	}
+	//for {
+	//vars.lock.RLock()
+	//if _, ok := vars.ctx[word]; ok {
+	//	vars.ctx[word] <- args[1]
+	//	return args[1]
+	//}
+	//if ch := vars.get_var_chan(word); ch != nil {
+	//	ch <- args[1]
+	//	return args[1]
+	//}
+	//if vars.next == nil {
+	//fmt.Println(fmt.Sprintf("Variable %s <unbound>", word.String()))
+	//	log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
+	//	return newIdentNode("<unbound>")
+	//}
+	//nvars := vars.next
+	//vars.lock.Unlock()
+	//vars = nvars
+	//}
 	//return args[1]
 }
 

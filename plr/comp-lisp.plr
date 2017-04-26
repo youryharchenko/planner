@@ -20,6 +20,7 @@
 
 {def comp-lisp
   {lambda [l]
+    {print (comp-lisp .l)}
     {cond
       [{atom? .l} {comp-atom .l}]
       [.l {comp-list .l}]
@@ -27,6 +28,7 @@
 
 {def comp-atom
   {lambda [a]
+    {print (comp-atom .a)}
     {cond
       [{eq Num {type .a}} .a]
       [{eq T .a} T]
@@ -36,6 +38,17 @@
 {def comp-list
   {lambda [l]
     {let [[h {car .l}] [t {cdr .l}]]
+      {print (comp-list .h .t)}
       {cond
         [{eq .h quote} {car .t}]
-        [{eq .h car} {ete () {quote {x}}}]}}}}
+        [else
+          {ete
+            {cond
+              [{atom? .t} {comp-atom .t}]
+              [else {cons .h {comp-list {car .t}}}]}
+            {quote {x}}}]}}}}
+
+;{print {eval {comp-lisp 1}}}
+;{print {eval {comp-lisp (cons 1 ())}}}
+;{print {eval {comp-lisp (quote a)}}}
+{print {print {comp-lisp (car (quote (1 2 3)))}}}

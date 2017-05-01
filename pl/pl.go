@@ -43,8 +43,10 @@ type Vars struct {
 	next *Vars
 
 	debug bool
+	rb    map[IdentNode]Node
 
-	lock sync.RWMutex
+	lock    sync.RWMutex
+	lock_rb sync.RWMutex
 }
 
 func (v *Vars) findGlobal() *Vars {

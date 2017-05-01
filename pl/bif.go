@@ -369,9 +369,19 @@ func is(v *Vars, args []Node) Node {
 	pat := args[0]
 	expr := args[1].Value(v)
 
+	v.rb = map[IdentNode]Node{}
+
 	if v.run_is(pat, expr) {
 		return t
 	} else {
+		v.lock_rb.RLock()
+		for key, node := range v.rb {
+			//log.Printf("roll_back id: %s, val: %s", key, node)
+			if node != nil {
+				v.reassign(key, node)
+			}
+		}
+		v.lock_rb.RUnlock()
 		return f
 	}
 }
@@ -481,32 +491,7 @@ func quote(v *Vars, args []Node) Node {
 
 func set(v *Vars, args []Node) Node {
 	word := args[0].(IdentNode)
-
 	return v.assign(word, args[1])
-	//env.lock.RLock()
-	//vars := v
-	//env.lock.RUnlock()
-
-	//for {
-	//vars.lock.RLock()
-	//if _, ok := vars.ctx[word]; ok {
-	//	vars.ctx[word] <- args[1]
-	//	return args[1]
-	//}
-	//if ch := vars.get_var_chan(word); ch != nil {
-	//	ch <- args[1]
-	//	return args[1]
-	//}
-	//if vars.next == nil {
-	//fmt.Println(fmt.Sprintf("Variable %s <unbound>", word.String()))
-	//	log.Panicf("variable %s <unbound>, deep: %d, ctx: %s", word.String(), v.deep, v.name)
-	//	return newIdentNode("<unbound>")
-	//}
-	//nvars := vars.next
-	//vars.lock.Unlock()
-	//vars = nvars
-	//}
-	//return args[1]
 }
 
 func prodfloat(v *Vars, args []Node) Node {

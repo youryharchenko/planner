@@ -166,12 +166,22 @@ func (v *Vars) run_is(pat Node, expr Node) bool {
 			}
 		}
 	case NodeCall:
-		val := pat.Value(v)
-		if val.Type() == expr.Type() && val.String() == expr.String() {
-			return true
-		} else {
-			return false
+		p := pat.(CallNode)
+		if id := p.Callee.Value(v).(IdentNode); id.Type() == NodeIdent {
+			fn := findFunc(id, v)
+			switch fn.mode {
+			case BuiltIn, UserDef:
+				val := pat.Value(v)
+				if val.Type() == expr.Type() && val.String() == expr.String() {
+					return true
+				} else {
+					return false
+				}
+			case MatchBuiltIn, MatchUserDef:
+				return applyMatch(fn, p.Args[:], expr, v)
+			}
 		}
+		return false
 	case NodeRef:
 		ref := pat.(RefNode)
 
@@ -231,15 +241,29 @@ func (v *Vars) run_is(pat Node, expr Node) bool {
 	return false
 }
 
-func (v *Vars) run_stmt(args []Node) {
+func (v *Vars) run_stmt_async(args []Node) {
 	//log.Printf("run_stmt: %v", args)
 	if len(args) >= 1 {
 		if len(args) == 1 {
 			val := args[0].Value(v)
 			v.ret <- val
 		} else {
-			go v.run_stmt(args[1:])
+			go v.run_stmt_async(args[1:])
 			args[0].Value(v)
+		}
+	} else {
+	}
+}
+
+func (v *Vars) run_stmt_sync(args []Node) {
+	//log.Printf("run_stmt: %v", args)
+	if len(args) >= 1 {
+		if len(args) == 1 {
+			val := args[0].Value(v)
+			v.ret <- val
+		} else {
+			args[0].Value(v)
+			go v.run_stmt_sync(args[1:])
 		}
 	} else {
 	}
@@ -361,7 +385,7 @@ func (v *Vars) run_cond(args []Node) {
 			ret = newListNode()
 		} else {
 			nv := v.new_current_local("cond clause", newVectNode([]Node{}))
-			go nv.run_stmt(list.Nodes[1:])
+			go nv.run_stmt_sync(list.Nodes[1:])
 			ret = nv.wait_return()
 			nv.del_current_local()
 		}
@@ -516,6 +540,33 @@ func applyFunc(f *Func, args []Node, v *Vars) Node {
 		return f.ud.apply(f.name, args, v)
 	}
 	return newIdentNode("<unexpected>")
+}
+
+func applyMatch(f *Func, args []Node, expr Node, v *Vars) bool {
+
+	switch f.mode {
+	case MatchBuiltIn:
+		if v.debug {
+			log.Println("applyMatch:BuiltIn", f.Type(), f.mode, f.name, args, expr, v.deep, v)
+		}
+		var list []Node
+		if f.class == FSubr {
+			list = args
+		} else {
+			list = []Node{}
+			for _, elm := range args {
+				list = append(list, elm.Value(v))
+			}
+		}
+		//log.Println(f.name, list, v.deep, v.name)
+		return f.mbi(v, list, expr)
+	case MatchUserDef:
+		if v.debug {
+			log.Println("applyMatch:UserDef", f.Type(), f.mode, f.name, args, expr, v.deep, v)
+		}
+		return f.mud.apply(f.name, args, expr, v)
+	}
+	return false
 }
 
 func makeLambda(name string, v *Vars, arg Node, body []Node) Func {

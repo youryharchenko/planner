@@ -23,6 +23,11 @@ func TestLang(t *testing.T) {
 		Test{"{let [X Y Z] {set X 1} {set Y 2} {set Z 3} {fold sub$int 6 (.X .Y .Z)}}", "0"},
 		Test{"{let [[X 3.7] [Y 5.4] [Z 7.2]] {fold sub$float 100 (.X .Y .Z)}}", "83.700000"},
 		Test{"{let [[f fold] [X 3.7] [Y 5.4] [Z 7.2]] {.f sub$float 100 (.X .Y .Z)}}", "83.700000"},
+		Test{"{let-async [X Y Z] {set X 1} {set Y 2} {set Z 3} {fold prod$int 1 (.X .Y .Z)}}", "6"},
+		Test{"{let-async [[X 3.7] [Y 5.4] [Z 7.2]] {fold prod$float 1 (.X .Y .Z)}}", "143.856000"},
+		Test{"{let-async [X Y Z] {set X 1} {set Y 2} {set Z 3} {fold sub$int 6 (.X .Y .Z)}}", "0"},
+		Test{"{let-async [[X 3.7] [Y 5.4] [Z 7.2]] {fold sub$float 100 (.X .Y .Z)}}", "83.700000"},
+		Test{"{let-async [[f fold] [X 3.7] [Y 5.4] [Z 7.2]] {.f sub$float 100 (.X .Y .Z)}}", "83.700000"},
 		Test{"{def f1 {lambda *p {fold sum$int 0 .p}}} {f1 1 2 3 4 5}", "15"},
 		Test{"{def f2 {lambda *p {fold sum$int 0 .p}}}", "lambda"},
 		Test{"{f2 {sum$int 1 2} 3 4 5}", "15"},
@@ -124,6 +129,35 @@ func TestLang(t *testing.T) {
 		Test{"{let [[x (A - B)] [y (A + B)]] {is [*x .y] [(A + B) (A - B)]} .x}", "(A - B)"},
 		Test{"{let [[x ()]] {is [*x .x] [(A + B) (A + B)]} .x}", "(A + B)"},
 		Test{"{let [[x ()]] {is [*x .x] [(A + B) (A - B)]} .x}", "()"},
+		Test{"{is {?id} a}", "T"},
+		Test{"{is {?id} 1}", "()"},
+		Test{"{is {?num} 1}", "T"},
+		Test{"{is {?num} 1.0}", "T"},
+		Test{"{is {?list} 1.0}", "()"},
+		Test{"{is {?list} ()}", "T"},
+		Test{"{is {?list 0} ()}", "T"},
+		Test{"{is {?list 1} ()}", "()"},
+		Test{"{is {?list 5} (a b c d e)}", "T"},
+		Test{"{is {?list} (a b c d e)}", "T"},
+		Test{"{is {?list} [a b c d e]}", "()"},
+		Test{"{is {?vect} [a b c d e]}", "T"},
+		Test{"{is {?vect 5} [a b c d e]}", "T"},
+		Test{"{is {?vect 5} (a b c d e)}", "()"},
+		Test{"{is {?vect 4} [a b c d e]}", "()"},
+		Test{"{is {?call} {quote {func c d e}}}", "T"},
+		Test{"{is {?call 3} {quote {func c d e}}}", "T"},
+		Test{"{is {?call 2} {quote {func c d e}}}", "()"},
+		Test{"{is {?call 0} {quote {func}}}", "T"},
+		Test{"{let [x] {is {?list .x} (A + B)} .x}", "3"},
+		Test{"{let [x] {is {?call .x} {quote {func}}} .x}", "0"},
+		Test{"{is [1 {?} 3] [1 2 3]}", "T"},
+		Test{"{let [x] {is {?et {?list 3} .x} (A + B)} .x}", "(A + B)"},
+		Test{"{let [[x null]] {is {?et {?list 2} .x} (A + B)} .x}", "null"},
+		Test{"{is {?same [x] {?list 3} .x} (A + B)}", "T"},
+		Test{"{let [x] {is {?aut (*x B) (A *x) (*x C)} (A C)} .x}", "C"},
+		Test{"{let [[x null]] {is {?aut (.x B) (A .x) (.x C)} (A C)} .x}", "null"},
+		Test{"{let [[x null]] {is {?aut (.x B) (A *x) (.x C)} (A C)} .x}", "C"},
+		Test{"{let [[x null]] {is {?aut (.x B) (A .x) (*x C)} (A C)} .x}", "A"},
 		//Test{"", ""},
 	}
 
@@ -131,7 +165,7 @@ func TestLang(t *testing.T) {
 	for i, test := range tests {
 		//log.Println(i, test.text, "->", test.res)
 		if res := env.Eval(ParseFromString("<STRING>", test.text+"\n")...); res.String() != test.res {
-			t.Error(fmt.Sprintf("#%d: Expected result '%s', got string '%s'", i, test.res, res))
+			t.Error(fmt.Sprintf("#%d: (%s) Expected result '%s', got string '%s'", i, test.text, test.res, res))
 		} else {
 			//fmt.Printf("%v\n", res)
 		}

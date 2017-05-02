@@ -478,7 +478,23 @@ func let(v *Vars, args []Node) Node {
 	}
 	nv := v.new_current_local("let", newVectNode(nvars))
 
-	go nv.run_stmt(args[1:])
+	go nv.run_stmt_sync(args[1:])
+
+	ret := nv.wait_return()
+	nv.del_current_local()
+	return ret
+}
+
+func letasync(v *Vars, args []Node) Node {
+	vars := args[0].(VectorNode)
+	nvars := make([]Node, len(vars.Nodes))
+
+	for i, n := range vars.Nodes {
+		nvars[i] = n.Value(v)
+	}
+	nv := v.new_current_local("let", newVectNode(nvars))
+
+	go nv.run_stmt_async(args[1:])
 
 	ret := nv.wait_return()
 	nv.del_current_local()

@@ -23,6 +23,8 @@ type FuncType int
 const (
 	BuiltIn FuncType = iota
 	UserDef
+	MatchBuiltIn
+	MatchUserDef
 )
 
 type FuncClass int
@@ -195,7 +197,9 @@ type Func struct {
 	mode  FuncType
 	class FuncClass
 	bi    func(*Vars, []Node) Node
+	mbi   func(*Vars, []Node, Node) bool
 	ud    *Lambda
+	mud   *Kappa
 }
 
 func (expr Func) Value(v *Vars) Node {
@@ -269,13 +273,24 @@ func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 		//fn.vars.printTrace()
 	}
 
-	go nv.run_stmt(fn.body)
+	go nv.run_stmt_sync(fn.body)
 
 	ret := nv.wait_return()
 
 	nv.del_current_local()
 	return ret
 
+}
+
+type Kappa struct {
+	vars *Vars
+	arg  Node
+	expr Node
+	body []Node
+}
+
+func (fn *Kappa) apply(name string, args []Node, expr Node, v *Vars) bool {
+	return false
 }
 
 type PairNode struct {
@@ -311,6 +326,7 @@ func Begin() *Env {
 	}
 	//local := Vars{ctx: map[IdentNode]chan Node{}, next: nil}
 
+	// BuiltIn
 	name = "abs$float"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: absfloat}))
 	name = "and"
@@ -359,6 +375,10 @@ func Begin() *Env {
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: is}))
 	name = "lambda"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: lambda}))
+	name = "let"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: let}))
+	name = "let-async"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: letasync}))
 	name = "lt$float"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: ltfloat}))
 	name = "lt$int"
@@ -379,8 +399,6 @@ func Begin() *Env {
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: prodfloat}))
 	name = "prod$int"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: prodint}))
-	name = "let"
-	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: let}))
 	name = "remainder"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: remainder}))
 	name = "set"
@@ -398,6 +416,26 @@ func Begin() *Env {
 	name = "type"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: type_}))
 
+	// MatchBuiltIn
+	name = "?"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_one}))
+	name = "?aut"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_aut}))
+	name = "?call"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_call}))
+	name = "?et"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_et}))
+	name = "?id"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_id}))
+	name = "?list"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_list}))
+	name = "?num"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_num}))
+	name = "?same"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_same}))
+	name = "?vect"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_vect}))
+
 	env := &Env{
 		globalVars: &global,
 		//localVars:  &local,
@@ -410,19 +448,14 @@ func Begin() *Env {
 
 func (env *Env) Eval(args ...Node) Node {
 	var ret Node
-	//env.globalVars.debug = true
 
 	nv := env.globalVars.new_current_local("global eval", newVectNode([]Node{}))
-	//go nv.wait_error()
-	go nv.run_stmt(args)
+
+	go nv.run_stmt_async(args)
 	ret = nv.wait_error_return()
 
-	//nv.err <- newStringNode("ok")
 	nv.del_current_local()
 
-	//for _, expr := range args {
-	//	ret = expr.Value(env.globalVars)
-	//}
 	if ret == nil {
 		return newStringNode("return is nil")
 	} else {

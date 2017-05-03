@@ -386,6 +386,10 @@ func is(v *Vars, args []Node) Node {
 	}
 }
 
+func kappa(v *Vars, args []Node) Node {
+	return makeKappa("kappa", v, args[0], args[1:])
+}
+
 func lambda(v *Vars, args []Node) Node {
 	return makeLambda("lambda", v, args[0], args[1:])
 }
@@ -502,7 +506,11 @@ func letasync(v *Vars, args []Node) Node {
 }
 
 func quote(v *Vars, args []Node) Node {
-	return args[0]
+	if args[0].Type() == NodeList {
+		return args[0].(ListNode).Rev()
+	} else {
+		return args[0]
+	}
 }
 
 func set(v *Vars, args []Node) Node {

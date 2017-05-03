@@ -285,12 +285,72 @@ func (fn *Lambda) apply(name string, args []Node, v *Vars) Node {
 type Kappa struct {
 	vars *Vars
 	arg  Node
-	expr Node
+	//expr Node
 	body []Node
 }
 
 func (fn *Kappa) apply(name string, args []Node, expr Node, v *Vars) bool {
-	return false
+	//log.Println("Kappa: args", args)
+	var vars VectorNode
+
+	switch fn.arg.Type() {
+	case NodeIdent:
+		var ident IdentNode
+		var param Node
+		arg := fn.arg.(IdentNode)
+
+		if arg.Ident[0] == '*' {
+			ident = newIdentNode(arg.Ident[1:])
+			param = newVectNode(args)
+		} else {
+			ident = newIdentNode(arg.Ident)
+			list := make([]Node, len(args))
+			for i, a := range args {
+				list[i] = a.Value(v)
+			}
+			param = newVectNode(list)
+		}
+		vars = newVectNode([]Node{newVectNode([]Node{ident, param})})
+	case NodeVector:
+		lst := fn.arg.(VectorNode)
+		list := make([]Node, len(lst.Nodes))
+		for i, a := range lst.Nodes {
+			ident := a.(IdentNode)
+			var param Node
+			if ident.Ident[0] == '*' {
+				ident = newIdentNode(ident.Ident[1:])
+				param = args[i]
+			} else {
+				param = args[i].Value(v)
+			}
+			list[i] = newVectNode([]Node{ident, param})
+		}
+		vars = newVectNode(list)
+
+	}
+	//log.Println(name, vars, v.deep, v.name)
+	//nv := fn.vars.new_current_local(name, vars)
+	fnv := v.new_current_local(name+"-def", newVectNode([]Node{})).merge(fn.vars)
+	//log.Println(fnv)
+	//go fnv.wait_return()
+
+	nv := fnv.new_current_local(name+"-run", vars)
+
+	ret := nv.run_is(fn.body[0], expr)
+
+	if v.debug {
+		//v.printTrace()
+		//log.Println("=============")
+		//fn.vars.printTrace()
+	}
+
+	//go nv.run_stmt_sync(fn.body)
+
+	//ret := nv.wait_return()
+
+	nv.del_current_local()
+	return ret
+
 }
 
 type PairNode struct {
@@ -373,6 +433,8 @@ func Begin() *Env {
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: Subr, bi: getjson}))
 	name = "is"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: is}))
+	name = "kappa"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: kappa}))
 	name = "lambda"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: BuiltIn, class: FSubr, bi: lambda}))
 	name = "let"
@@ -431,6 +493,12 @@ func Begin() *Env {
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_list}))
 	name = "?num"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_num}))
+	name = "?non"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_non}))
+	name = "?one-of"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: Subr, mbi: m_one_of}))
+	name = "?pat"
+	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: Subr, mbi: m_pat}))
 	name = "?same"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_same}))
 	name = "?vect"

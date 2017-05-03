@@ -54,8 +54,41 @@ func m_num(v *Vars, args []Node, expr Node) bool {
 	return false
 }
 
+func m_non(v *Vars, args []Node, expr Node) bool {
+	return !v.run_is(args[0], expr)
+}
+
 func m_one(v *Vars, args []Node, expr Node) bool {
 	return true
+}
+
+func m_one_of(v *Vars, args []Node, expr Node) bool {
+	var nodes []Node
+	switch args[0].Type() {
+	case NodeList:
+		list := args[0].(ListNode)
+		nodes = list.Nodes()
+	case NodeVector:
+		vect := args[0].(VectorNode)
+		nodes = vect.Nodes[:]
+	}
+	for _, n := range nodes {
+		if v.run_is(n, expr) {
+			return true
+		}
+	}
+	return false
+}
+
+func m_pat(v *Vars, args []Node, expr Node) bool {
+	var pat Node
+	if args[0].Type() == NodeList {
+		pat = args[0].(ListNode).Rev()
+	} else {
+		pat = args[0]
+	}
+	//log.Println(pat, expr)
+	return v.run_is(pat, expr)
 }
 
 func m_same(v *Vars, args []Node, expr Node) bool {

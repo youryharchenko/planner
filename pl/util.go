@@ -569,6 +569,10 @@ func applyMatch(f *Func, args []Node, expr Node, v *Vars) bool {
 	return false
 }
 
+func makeKappa(name string, v *Vars, arg Node, body []Node) Func {
+	return Func{NodeType: NodeFunc, name: name, mode: MatchUserDef, mud: &Kappa{vars: v, arg: arg, body: body}}
+}
+
 func makeLambda(name string, v *Vars, arg Node, body []Node) Func {
 	return Func{NodeType: NodeFunc, name: name, mode: UserDef, ud: &Lambda{vars: v, arg: arg, body: body}}
 }

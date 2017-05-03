@@ -155,6 +155,20 @@ func TestSICP(t *testing.T) {
 		Test{"{list-ref (1 4 9 16 25) 3}", "16"},
 		Test{length_lambda, "lambda"},
 		Test{"{length (1 3 5 7)}", "4"},
+		Test{append_lambda, "lambda"},
+		Test{"{append (1 2 3 4) (5 6 7)}", "(1 2 3 4 5 6 7)"},
+		Test{reverse_lambda, "lambda"},
+		Test{"{reverse {append (1 2 3 4) (5 6 7)}}", "(7 6 5 4 3 2 1)"},
+		// Tree
+		Test{"{def tree {cons (1 2) (3 4)}}", "((1 2) 3 4)"},
+		Test{"{length :tree}", "3"},
+		Test{"(:tree :tree)", "(((1 2) 3 4) ((1 2) 3 4))"},
+		Test{count_leaves_lambda, "lambda"},
+		Test{"{not {is {?list} :tree}}", "()"},
+		Test{"{count-leaves :tree}", "4"},
+		Test{"{count-leaves (:tree :tree)}", "8"},
+		//
+		Test{"{map square (1 2 3 4 5)}", "(1 4 9 16 25)"},
 		//Test{"", ""},
 
 	}
@@ -492,6 +506,39 @@ var length_lambda = `
 		{if {not .items}
 			0
 			{sum$int 1 {length {cdr .items}}}
+		}
+	}
+}
+`
+var append_lambda = `
+{def append
+  {lambda [list1 list2]
+    {if {not .list1}
+      .list2
+      {cons {car .list1} {append {cdr .list1} .list2}}
+		}
+	}
+}
+`
+var reverse_lambda = `
+{def reverse
+  {lambda [l]
+		{if {not .l}
+      .l
+      {append {reverse {cdr .l}} ({car .l})}
+		}
+	}
+}
+`
+
+var count_leaves_lambda = `
+{def count-leaves
+	{lambda [x]
+;		{print .x}
+		{cond
+			[{not .x} 0]
+			[{not {is {?list} .x}} 1]
+			[else {sum$int {count-leaves {car .x}} {count-leaves {cdr .x}}}]
 		}
 	}
 }

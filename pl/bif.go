@@ -4,6 +4,7 @@ import (
 	"go/token"
 	"log"
 	"math"
+	"time"
 )
 
 func absfloat(v *Vars, args []Node) Node {
@@ -454,6 +455,10 @@ func not(v *Vars, args []Node) Node {
 	}
 }
 
+func omega(v *Vars, args []Node) Node {
+	return makeOmega("omega", v, args[0], args[1:])
+}
+
 func or(v *Vars, args []Node) Node {
 	nv := v.new_current_local("or", newVectNode([]Node{}))
 
@@ -561,6 +566,15 @@ func remainder(v *Vars, args []Node) Node {
 	return newInt(s1 % s2)
 }
 
+func send(v *Vars, args []Node) Node {
+	//log.Println("send to actor: ", args[0], args[1])
+	actor := args[0].(ActorInst)
+
+	actor.in <- args[1]
+
+	return actor
+}
+
 func sin(v *Vars, args []Node) Node {
 	var s float64
 	switch args[0].(NumberNode).NumberType {
@@ -570,6 +584,35 @@ func sin(v *Vars, args []Node) Node {
 		s = math.Sin(args[0].(NumberNode).Float)
 	}
 	return newFloat(s)
+}
+
+func sleep(v *Vars, args []Node) Node {
+	var s int64
+	switch args[0].(NumberNode).NumberType {
+	case token.INT:
+		s = args[0].(NumberNode).Int
+	case token.FLOAT:
+		s = round(args[0].(NumberNode).Float)
+	}
+	<-time.After(time.Millisecond * time.Duration(s))
+	return args[0]
+}
+
+func start(v *Vars, args []Node) Node {
+	var actor ActorInst
+	//log.Println("start actor ", args[0])
+	switch args[0].Type() {
+	case NodeIdent:
+		actor = newActorInst(findActor(args[0].(IdentNode), v), args[1].String())
+	case NodeActor:
+		actor = newActorInst(args[0].(Actor), args[1].String())
+	case NodeActorInst:
+		actor = args[0].(ActorInst)
+	}
+
+	go v.run_actor(&actor)
+
+	return actor
 }
 
 func subfloat(v *Vars, args []Node) Node {
@@ -655,6 +698,8 @@ func type_(v *Vars, args []Node) Node {
 		t = "Str"
 	case NodeVector:
 		t = "Vect"
+	case NodeActor:
+		t = "Actor"
 	}
 	return newIdentNode(t)
 }

@@ -39,6 +39,8 @@ const (
 	NodeFunc
 	NodePair
 	NodeObj
+	NodeActor
+	NodeActorInst
 )
 
 type IdentNode struct {

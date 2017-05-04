@@ -11,7 +11,7 @@ import (
 func main() {
 	file := flag.String("f", "", "source filename")
 	flag.Parse()
-	fmt.Println("PLANNER: Started, v.0.1.19")
+	fmt.Println("PLANNER: v.0.1.20")
 	fmt.Printf("Source file: %s\n", *file)
 	if cont, err := ioutil.ReadFile(*file); err == nil {
 		src := string(cont)

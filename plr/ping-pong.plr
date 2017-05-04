@@ -1,0 +1,19 @@
+
+{def ping-def
+  {omega [mess]
+    {print {cdr .mess}}
+    {send {car .mess} {cons .me "Ping"}}}}
+
+{def pong-def
+  {omega [mess]
+    {print {cdr .mess}}
+    {send {car .mess} {cons .me "Pong"}}}}
+
+{let [[ping {start ping-def Ping}]
+      [pong {start pong-def Pong}]]
+  {send .pong {cons .ping "Start"}}
+  {print {sleep 5}}
+  {send .pong stop}
+  ;{print {sleep 1}}
+  {send .ping stop}
+  {print {sleep 1}}}

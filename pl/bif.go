@@ -395,6 +395,10 @@ func lambda(v *Vars, args []Node) Node {
 	return makeLambda("lambda", v, args[0], args[1:])
 }
 
+func lenvect(v *Vars, args []Node) Node {
+	return newInt(int64(len(args[0].(VectorNode).Nodes)))
+}
+
 func ltfloat(v *Vars, args []Node) Node {
 	var d1, d2 float64
 	switch args[0].(NumberNode).NumberType {
@@ -523,6 +527,11 @@ func set(v *Vars, args []Node) Node {
 	return v.assign(word, args[1])
 }
 
+func reset(v *Vars, args []Node) Node {
+	word := args[0].(IdentNode)
+	return v.reassign(word, args[1])
+}
+
 func prodfloat(v *Vars, args []Node) Node {
 	p := float64(1)
 	for _, arg := range args {
@@ -603,9 +612,9 @@ func start(v *Vars, args []Node) Node {
 	//log.Println("start actor ", args[0])
 	switch args[0].Type() {
 	case NodeIdent:
-		actor = newActorInst(findActor(args[0].(IdentNode), v), args[1].String())
+		actor = newActorInst(findActor(args[0].(IdentNode), v), args[1])
 	case NodeActor:
-		actor = newActorInst(args[0].(Actor), args[1].String())
+		actor = newActorInst(args[0].(Actor), args[1])
 	case NodeActorInst:
 		actor = args[0].(ActorInst)
 	}

@@ -1,0 +1,20 @@
+;
+{let [[printer      {start  {omega [mess] {print .mess}} Printer}]
+      [n 0]]
+  ;
+  {let [[ping-def     {omega [mess]
+                        {send .printer {cdr .mess}}
+                        {reset n {sum$int .n 1}}
+                        {send {car .mess} {cons .me [.n "Ping"]}}}]
+        [pong-def     {omega [mess]
+                        {send .printer {cdr .mess}}
+                        {reset n {sum$int .n 1}}
+                        {send {car .mess} {cons .me [.n "Pong"]}}}]]
+    ;
+    {let [[superv-def    {omega [mess]
+                            {let [[ping {start .ping-def Ping}]
+                                  [pong {start .pong-def Pong}]]
+                              {send .pong {cons .ping [.n "Start"]}}}}]]
+      ;
+      {send {start .superv-def Superv} T}
+      {sleep 5}}}}

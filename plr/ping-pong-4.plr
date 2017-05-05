@@ -1,0 +1,21 @@
+;
+{let [[printer      {start  {omega [mess] {print .mess}} Printer}]]
+  ;
+  {let [[ping-def     {omega [mess]
+                        {let [i s]
+                          {is [.i .s] {cdr .mess}}
+                          {send .printer [.i .s]}
+                          {send {car .mess} {cons .me [{sum$int .i 1} "Ping"]}}}}]
+        [pong-def     {omega [mess]
+                        {let [i s]
+                          {is [.i .s] {cdr .mess}}
+                          {send .printer [.i .s]}
+                          {send {car .mess} {cons .me [{sum$int .i 1} "Pong"]}}}}]]
+    ;
+    {let [[superv-def    {omega [mess]
+                            {let [[ping {start .ping-def Ping}]
+                                  [pong {start .pong-def Pong}]]
+                              {send .pong {cons .ping [0 "Start"]}}}}]]
+      ;
+      {send {start .superv-def Superv} T}
+      {sleep 5}}}}

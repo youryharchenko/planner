@@ -26,7 +26,7 @@ func (expr Actor) Copy() Node {
 
 type ActorInst struct {
 	NodeType
-	name  string
+	param Node
 	actor *Actor
 	in    chan Node
 }
@@ -36,7 +36,7 @@ func (expr ActorInst) Value(v *Vars) Node {
 }
 
 func (expr ActorInst) String() string {
-	return fmt.Sprintf("%v", expr.name)
+	return fmt.Sprintf("%v", expr.param)
 }
 
 func (expr ActorInst) Copy() Node {
@@ -89,7 +89,7 @@ func (om *Omega) apply(name string, args []Node, v *Vars, me *ActorInst) bool {
 
 	}
 
-	vars = newVectNode(append(vars.Nodes, newVectNode([]Node{newIdentNode("me"), *me})))
+	vars = newVectNode(append(vars.Nodes, newVectNode([]Node{newIdentNode("me"), *me}), newVectNode([]Node{newIdentNode("param"), me.param})))
 	//log.Println(name, vars, v.deep, v.name)
 	//nv := fn.vars.new_current_local(name, vars)
 	onv := v.new_current_local(name+"-def", newVectNode([]Node{})).merge(om.vars)
@@ -155,8 +155,8 @@ func makeOmega(name string, v *Vars, arg Node, body []Node) Actor {
 	return Actor{NodeType: NodeActor, name: name, body: &Omega{vars: v, arg: arg, body: body}}
 }
 
-func newActorInst(actor Actor, name string) ActorInst {
-	inst := ActorInst{NodeType: NodeActorInst, actor: &actor, name: name, in: make(chan Node, 10)}
+func newActorInst(actor Actor, param Node) ActorInst {
+	inst := ActorInst{NodeType: NodeActorInst, actor: &actor, param: param, in: make(chan Node, 10)}
 	return inst
 }
 

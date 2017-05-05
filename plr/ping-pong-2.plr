@@ -1,0 +1,25 @@
+
+{def superv-def
+  {omega [mess]
+    {let [[ping {start ping-def Ping}]
+          [pong {start pong-def Pong}]]
+      {send .pong {cons .ping "Start"}}}}}
+
+{def printer-def
+  {omega [mess]
+    {print .mess}}}
+
+{def ping-def
+  {omega [mess]
+    {send :printer {cdr .mess}}
+    {send {car .mess} {cons .me "Ping"}}}}
+
+{def pong-def
+  {omega [mess]
+    {send :printer {cdr .mess}}
+    {send {car .mess} {cons .me "Pong"}}}}
+
+{def printer {start printer-def Printer}}
+
+{send {start superv-def Superv} T}
+{send :printer {sleep 5}}

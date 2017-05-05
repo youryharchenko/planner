@@ -178,6 +178,9 @@ func TestLang(t *testing.T) {
 		Test{"{def ?not-in {kappa [l] {?non {?one-of .l}}}}", "kappa"},
 		Test{"{let [[x (A B C)]] {is {?not-in .x} A}}", "()"},
 		Test{"{let [[x (A B C)]] {is {?not-in .x} D}}", "T"},
+		// Vector
+		Test{"{len$vect []}", "0"},
+		Test{"{len$vect [a b c]}", "3"},
 		//Test{"", ""},
 	}
 

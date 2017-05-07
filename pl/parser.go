@@ -41,6 +41,8 @@ const (
 	NodeObj
 	NodeActor
 	NodeActorInst
+	NodeGoType
+	NodeGoValue
 )
 
 type IdentNode struct {

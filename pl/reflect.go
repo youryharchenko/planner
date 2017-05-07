@@ -5,12 +5,84 @@ import (
 	"reflect"
 )
 
+func gocanset(v *Vars, args []Node) Node {
+	if args[0].(GoValueNode).v.CanSet() {
+		return newIdentNode("T")
+	}
+	return newListNode()
+}
+
+func goelem(v *Vars, args []Node) Node {
+	return newGoValueNode(args[0].(GoValueNode).v.Elem())
+}
+
+func gofieldbyname(v *Vars, args []Node) Node {
+	return newGoValueNode(args[0].(GoValueNode).v.FieldByName(args[1].(IdentNode).Ident))
+}
+
+//func gofieldbyname_int(v *Vars, args []Node) Node {
+//	return newInt(args[0].(GoValueNode).v.FieldByName(args[1].(IdentNode).Ident).Int())
+//}
+
+//func gofieldbyname_string(v *Vars, args []Node) Node {
+//	return newStringNode(args[0].(GoValueNode).v.FieldByName(args[1].(IdentNode).Ident).String())
+//}
+
+func gogetint(v *Vars, args []Node) Node {
+	return newInt(args[0].(GoValueNode).v.Int())
+}
+
+func gogetstring(v *Vars, args []Node) Node {
+	return newStringNode(args[0].(GoValueNode).v.String())
+}
+
+func goindir(v *Vars, args []Node) Node {
+	return newGoValueNode(reflect.Indirect(args[0].(GoValueNode).v))
+}
+
 func gokindtype(v *Vars, args []Node) Node {
 	return newIdentNode(args[0].(GoTypeNode).t.Kind().String())
 }
 
 func gokindvalue(v *Vars, args []Node) Node {
 	return newIdentNode(args[0].(GoValueNode).v.Kind().String())
+}
+
+func gonew(v *Vars, args []Node) Node {
+	return newGoValueNode(reflect.New(args[0].(GoTypeNode).t))
+}
+
+func goset(v *Vars, args []Node) Node {
+	args[0].(GoValueNode).v.Set(args[1].(GoValueNode).v)
+	return args[1]
+}
+
+func gosetstring(v *Vars, args []Node) Node {
+	args[0].(GoValueNode).v.SetString(args[1].String())
+	return args[1]
+}
+
+func gosetint(v *Vars, args []Node) Node {
+	var d int64
+	switch args[1].(NumberNode).NumberType {
+	case token.INT:
+		d = args[1].(NumberNode).Int
+	case token.FLOAT:
+		d = round(args[1].(NumberNode).Float)
+	}
+	args[0].(GoValueNode).v.SetInt(d)
+	return args[1]
+}
+
+func gostructof(v *Vars, args []Node) Node {
+	fields := make([]reflect.StructField, len(args))
+	for i, arg := range args {
+		vect := arg.(VectorNode)
+		name := vect.Nodes[0].(IdentNode).Ident
+		typ := vect.Nodes[1].(GoTypeNode).t
+		fields[i] = reflect.StructField{Name: name, Type: typ}
+	}
+	return newGoTypeNode(reflect.StructOf(fields))
 }
 
 func gotypeof(v *Vars, args []Node) Node {
@@ -55,26 +127,26 @@ func gogetvalue(v *Vars, args []Node) Node {
 		n := args[0].(NumberNode)
 		switch n.NumberType {
 		case token.INT:
-			return newGoValueNode(reflect.ValueOf(args[0].(NumberNode).Int))
+			return newGoValueNode(reflect.ValueOf((args[0].(NumberNode).Int)))
 		case token.FLOAT:
-			return newGoValueNode(reflect.ValueOf(args[0].(NumberNode).Float))
+			return newGoValueNode(reflect.ValueOf((args[0].(NumberNode).Float)))
 		}
 	case NodeIdent:
-		return newGoValueNode(reflect.ValueOf(args[0].(IdentNode).Ident))
+		return newGoValueNode(reflect.ValueOf((args[0].(IdentNode).Ident)))
 	case NodeString:
-		return newGoValueNode(reflect.ValueOf(args[0].(StringNode).Val))
+		return newGoValueNode(reflect.ValueOf((args[0].(StringNode).Val)))
 	case NodeList:
-		return newGoValueNode(reflect.ValueOf(args[0].(ListNode).Head))
+		return newGoValueNode(reflect.ValueOf((args[0].(ListNode).Head)))
 	case NodeVector:
-		return newGoValueNode(reflect.ValueOf(args[0].(VectorNode).Nodes))
+		return newGoValueNode(reflect.ValueOf((args[0].(VectorNode).Nodes)))
 	case NodeCall:
-		return newGoValueNode(reflect.ValueOf(args[0].(CallNode)))
+		return newGoValueNode(reflect.ValueOf((args[0].(CallNode))))
 	case NodeRef:
-		return newGoValueNode(reflect.ValueOf(args[0].(RefNode).val))
+		return newGoValueNode(reflect.ValueOf((args[0].(RefNode).val)))
 	case NodeFunc:
 		return newGoValueNode(reflect.ValueOf(args[0].(Func)))
 	}
-	return newGoValueNode(reflect.ValueOf(args[0]))
+	return newGoValueNode(reflect.ValueOf(&args[0]))
 }
 
 type GoTypeNode struct {

@@ -1,0 +1,24 @@
+{def engo-scene-preload
+  {lambda [scene] {print ["engo-scene-preload runs" .scene]}}}
+{def engo-scene-setup
+    {lambda [scene world] {print ["engo-scene-setup runs" .scene .world]}}}
+;{debug on}
+{let [[opts {go-elem {go-new {engo-opts-type}}}]]
+  {let [[printer      {start  {omega [mess] {print .mess}} Printer}]]
+  ;
+    {let [[ping-def     {omega [mess]
+                          {let [i s]
+                            {is [.i .s] {cdr .mess}}
+                            {send .printer [.i .s]}
+                            {sleep 500}
+                            {send {car .mess} {cons .me [{sum$int .i 1} .param]}}}}]]
+      ;
+      {let [[superv-def    {omega [mess]
+                              {let [[ping {start .ping-def "Ping"}]
+                                    [pong {start .ping-def "Pong"}]]
+                                {send .pong {cons .ping [0 "Start"]}}}}]]
+        ;
+        {go-set$int {go-field .opts Width} 1024}
+        {go-set$int {go-field .opts Height} 720}
+        {send {start .superv-def Superv} T}
+        {engo-run .opts Scene World}}}}}

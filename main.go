@@ -11,11 +11,12 @@ import (
 func main() {
 	file := flag.String("f", "", "source filename")
 	flag.Parse()
-	fmt.Println("PLANNER: v.0.1.20")
+	fmt.Println("PLANNER: v.0.1.21")
 	fmt.Printf("Source file: %s\n", *file)
 	if cont, err := ioutil.ReadFile(*file); err == nil {
 		src := string(cont)
-		fmt.Println(pl.Begin().Eval(pl.ParseFromString("<STRING>", src)...))
+		//fmt.Println(pl.Begin().Eval(pl.ParseFromString("<STRING>", src)...))
+		fmt.Println(pl.Begin().Loop(pl.ParseFromString("<STRING>", src)...))
 	} else {
 		fmt.Println(err)
 	}

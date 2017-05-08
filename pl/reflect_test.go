@@ -92,6 +92,10 @@ func TestReflect(t *testing.T) {
 		Test{"{go-get$string :s}", ""},
 		Test{"{go-set$string :s \"Hello, world!\"}", "\"Hello, world!\""},
 		Test{"{go-get$string :s}", "\"Hello, world!\""},
+		// Engo
+		Test{"{engo-opts-type}", "engo.RunOptions"},
+		Test{"{go-new {engo-opts-type}}", "<*engo.RunOptions Value>"},
+		Test{"{go-elem {go-new {engo-opts-type}}}", "<engo.RunOptions Value>"},
 		//Test{"", ""},
 	}
 

@@ -378,7 +378,7 @@ func Begin() *Env {
 		name:  "global",
 		deep:  0,
 		vars:  map[IdentNode]chan Node{},
-		err:   make(chan Node),
+		err:   make(chan Node, 1),
 		ret:   make(chan Node),
 		exit:  make(chan Node),
 		next:  nil,
@@ -548,6 +548,8 @@ func Begin() *Env {
 	name = "?vect"
 	global.set_var_chan(newIdentNode(name), makeFunc(Func{NodeType: NodeFunc, name: name, mode: MatchBuiltIn, class: FSubr, mbi: m_vect}))
 
+	global.engo_bif_append()
+
 	env := &Env{
 		globalVars: &global,
 		//localVars:  &local,
@@ -556,6 +558,54 @@ func Begin() *Env {
 	}
 
 	return env
+}
+
+func (env *Env) Loop(args ...Node) Node {
+	var err Node
+	log.Println("Loop started")
+	nv := env.globalVars.new_current_local("global eval", newVectNode([]Node{}))
+	go nv.run_stmt_async(args)
+	err = nv.wait_exit()
+	log.Println("Loop finished")
+	nv.del_current_local()
+
+	if err == nil {
+		return newStringNode("Ok")
+	} else {
+		return err
+	}
+}
+
+func (v *Vars) wait_exit() Node {
+	var ret, err Node
+	ret = nil
+	for ret == nil {
+	Loop:
+		for {
+			log.Println("wait_exit: loop", ret)
+			select {
+			case err = <-v.err:
+				//if v.debug == true {
+				log.Println("wait_exit: select err", err)
+				//}
+				//log.Panicf("wait_error>> error: %s", err.String())
+				ret = err
+				break Loop
+			case ret = <-v.ret:
+				//if v.debug == true {
+				log.Println("wait_exit: select ret", ret)
+				//}
+				break Loop
+			case ret = <-v.exit:
+				//if v.debug == true {
+				log.Println("wait_exit: select exit", ret)
+				//}
+				break Loop
+
+			}
+		}
+	}
+	return ret
 }
 
 func (env *Env) Eval(args ...Node) Node {
@@ -611,16 +661,3 @@ func (v *Vars) wait_error_return() Node {
 	//}
 	return ret
 }
-
-/*
-func (env *Env) SourceNodes(nodes []Node) Node {
-	log.Println("SourceNode: started")
-	var result Node
-	for _, expr := range nodes {
-		log.Println("Source:", expr.String())
-		result = expr.Value(env)
-		log.Println("Result:", result)
-	}
-	return result
-}
-*/

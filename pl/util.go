@@ -2,6 +2,7 @@ package pl
 
 import (
 	"fmt"
+	"go/token"
 	"log"
 	"sync"
 	"time"
@@ -15,7 +16,7 @@ func (v *Vars) new_current_local(name string, vars VectorNode) *Vars {
 		next:  v,
 		ret:   make(chan Node),
 		exit:  make(chan Node),
-		err:   make(chan Node),
+		err:   make(chan Node, 1),
 		debug: v.debug,
 		//cont: true,
 		lock: sync.RWMutex{},
@@ -351,6 +352,7 @@ Loop:
 				//v.printTrace()
 				v.next.err <- err
 				v.lock.RUnlock()
+				time.Sleep(time.Second * 10)
 			} else {
 				v.lock.RUnlock()
 			}
@@ -370,7 +372,16 @@ Loop:
 
 func (v *Vars) raise_error(err string) {
 	v.lock.RLock()
-	v.err <- newStringNode(err)
+	if v.err != nil {
+		if len(v.err) > 0 {
+			<-v.err
+		}
+		log.Println("raise_error start", err, len(v.err))
+		v.err <- newStringNode(err)
+		log.Println("raise_error finished", err)
+	} else {
+		log.Println("raise_error chan err is nil", err)
+	}
 	v.lock.RUnlock()
 }
 
@@ -601,4 +612,22 @@ func round(val float64) int64 {
 		return int64(val - 0.5)
 	}
 	return int64(val + 0.5)
+}
+
+func number_to_float(node NumberNode) float64 {
+	switch node.NumberType {
+	case token.INT:
+		return float64(node.Int)
+	default:
+		return node.Float
+	}
+}
+
+func number_to_int(node NumberNode) int64 {
+	switch node.NumberType {
+	case token.INT:
+		return node.Int
+	default:
+		return round(node.Float)
+	}
 }
